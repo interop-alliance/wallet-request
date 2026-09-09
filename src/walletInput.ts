@@ -208,10 +208,28 @@ export function classifyWalletInput(
 }
 
 /**
+ * Raised by {@link handleWalletInput} when the input's kind has no handler:
+ * this wallet does not implement the grammar the text turned out to be. The
+ * classified `kind` rides along so a caller can name it in its own message.
+ * Dispatch on `err.name` rather than `instanceof`, as with the package's other
+ * errors: the classifier may resolve to a different copy of this package than
+ * the caller's, which makes the name the stable contract.
+ */
+export class UnhandledWalletInputError extends Error {
+  readonly kind: WalletInput['kind']
+
+  constructor({ kind }: { kind: WalletInput['kind'] }) {
+    super(`Unhandled wallet input of kind "${kind}".`)
+    this.name = 'UnhandledWalletInputError'
+    this.kind = kind
+  }
+}
+
+/**
  * The handlers a caller injects, one per classified kind. Every handler is
- * optional: an input whose kind has no handler throws, which is what keeps a
- * wallet that does not implement a grammar from silently doing the wrong thing
- * with it.
+ * optional: an input whose kind has no handler throws
+ * {@link UnhandledWalletInputError}, which is what keeps a wallet that does not
+ * implement a grammar from silently doing the wrong thing with it.
  */
 export interface WalletInputHandlers<T> {
   wasLink?: (input: { text: string }) => T | Promise<T>
@@ -297,7 +315,7 @@ async function dispatch<T, Input extends WalletInput>({
   input: Input
 }): Promise<T> {
   if (!handler) {
-    throw new Error(`Unhandled wallet input of kind "${input.kind}".`)
+    throw new UnhandledWalletInputError({ kind: input.kind })
   }
   return handler(input)
 }

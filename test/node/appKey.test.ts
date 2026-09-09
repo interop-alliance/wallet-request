@@ -5,7 +5,7 @@
  * The App Connect app-key credential module: the minted wire shape (fixed
  * two-entry type array, hosted context URL, `appUrl` / `origin` claims),
  * the seed-to-subject binding, the match predicates and instant-based
- * ranking, the store-time refusals, and the legacy re-issue migration.
+ * ranking, and the store-time refusals.
  * Ported from Freewallet `appKey.test.ts`, migrated to the `appUrl` model.
  */
 import { describe, it, expect } from 'vitest'
@@ -13,23 +13,17 @@ import { base64urlnopad } from '@scure/base'
 import { CapabilityAgent } from '@interop/webkms-client'
 import {
   APP_CONNECT_CONTEXT_URL,
-  APP_KEY_CREDENTIAL_TYPE,
   APP_KEY_KEY_NAME,
   APP_KEY_TYPE_ARRAY,
   AppKeyMintInvariantError,
   AppKeyRefusedError,
-  appKeyAppUrl,
   appKeyCandidates,
-  appKeyOrigin,
   appKeySeedBindsSubject,
-  appKeySubjectDid,
   assertMintedAppKey,
   assertStorableAppKey,
   findAppKeyCredential,
-  findLegacyAppKeyCredential,
   mintAppKeyCredential,
-  presentsAsAppKey,
-  reissueAppKeyCredential
+  presentsAsAppKey
 } from '../../src/index.js'
 import type { IVerifiableCredential } from '../../src/index.js'
 
@@ -316,129 +310,5 @@ describe('matching', () => {
     await expect(
       findAppKeyCredential({ credentials: [], appUrl: APP_URL, origin: ORIGIN })
     ).resolves.toBeUndefined()
-  })
-})
-
-describe('legacy migration', () => {
-  const legacyType = [
-    'VerifiableCredential',
-    APP_KEY_CREDENTIAL_TYPE,
-    'NotesAppKey'
-  ]
-
-  it('findLegacyAppKeyCredential finds the origin-bound pre-appUrl credential', async () => {
-    const legacy = await boundCredential({
-      appUrl: undefined,
-      type: legacyType
-    })
-    const modern = await boundCredential()
-    await expect(
-      findLegacyAppKeyCredential({
-        credentials: [modern, legacy],
-        origin: ORIGIN
-      })
-    ).resolves.toBe(legacy)
-  })
-
-  it('returns undefined when two legacy identities share the origin', async () => {
-    const first = await boundCredential({ appUrl: undefined, type: legacyType })
-    const second = await boundCredential({
-      appUrl: undefined,
-      type: ['VerifiableCredential', APP_KEY_CREDENTIAL_TYPE, 'OtherAppKey']
-    })
-    await expect(
-      findLegacyAppKeyCredential({
-        credentials: [first, second],
-        origin: ORIGIN
-      })
-    ).resolves.toBeUndefined()
-  })
-
-  it('tolerates duplicates of one legacy identity, newest first', async () => {
-    const seed = crypto.getRandomValues(new Uint8Array(32))
-    const older = await boundCredential({
-      seed,
-      appUrl: undefined,
-      type: legacyType,
-      issuanceDate: '2026-01-01T00:00:00Z'
-    })
-    const newer = await boundCredential({
-      seed,
-      appUrl: undefined,
-      type: legacyType,
-      issuanceDate: '2026-02-01T00:00:00Z'
-    })
-    await expect(
-      findLegacyAppKeyCredential({
-        credentials: [older, newer],
-        origin: ORIGIN
-      })
-    ).resolves.toBe(newer)
-  })
-
-  it('reissueAppKeyCredential preserves the identity and adopts the new shape', async () => {
-    const seed = crypto.getRandomValues(new Uint8Array(32))
-    const legacy = await boundCredential({
-      seed,
-      appUrl: undefined,
-      type: legacyType
-    })
-    const { credential, subjectDid } = await reissueAppKeyCredential({
-      credential: legacy,
-      app: APP,
-      origin: ORIGIN
-    })
-    // The same seed, so the same derived DID: identity and encrypted-data
-    // access preserved.
-    expect(subjectDid).toBe(appKeySubjectDid(legacy))
-    expect(appKeySubjectDid(credential)).toBe(subjectDid)
-    const subject = credential.credentialSubject as Record<string, unknown>
-    expect(subject.seed).toBe(base64urlnopad.encode(seed))
-    // The new shape: two-entry type array, appUrl claim, hosted context URL.
-    expect(credential.type).toEqual([...APP_KEY_TYPE_ARRAY])
-    expect(appKeyAppUrl(credential)).toBe(APP_URL)
-    expect(appKeyOrigin(credential)).toBe(ORIGIN)
-    expect((credential['@context'] as unknown[])[1]).toBe(
-      APP_CONNECT_CONTEXT_URL
-    )
-    await expect(assertMintedAppKey(credential)).resolves.toBeUndefined()
-    // The re-issued credential outranks the legacy one on the next match.
-    await expect(
-      findAppKeyCredential({
-        credentials: [legacy, credential],
-        appUrl: APP_URL,
-        origin: ORIGIN
-      })
-    ).resolves.toBe(credential)
-  })
-
-  it('reissueAppKeyCredential refuses a non-binding or foreign-origin credential', async () => {
-    const nonBinding = {
-      ...(await boundCredential({ appUrl: undefined, type: legacyType })),
-      credentialSubject: {
-        id: 'did:key:zSomeoneElse',
-        seed: 'xx',
-        origin: ORIGIN
-      }
-    } as IVerifiableCredential
-    await expect(
-      reissueAppKeyCredential({
-        credential: nonBinding,
-        app: APP,
-        origin: ORIGIN
-      })
-    ).rejects.toThrow(AppKeyMintInvariantError)
-    const foreignOrigin = await boundCredential({
-      appUrl: undefined,
-      type: legacyType,
-      origin: 'https://other.example'
-    })
-    await expect(
-      reissueAppKeyCredential({
-        credential: foreignOrigin,
-        app: APP,
-        origin: ORIGIN
-      })
-    ).rejects.toThrow(AppKeyMintInvariantError)
   })
 })

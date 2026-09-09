@@ -81,7 +81,7 @@ root barrel:                 index.ts re-exports every module, plus
 | `composeVp.ts`          | Builds the response VP, embedding grants before signing                                                                                                                                                                                                                                                      |
 | `exchangeClient.ts`     | The VC-API exchange client over an injected `FetchLike`                                                                                                                                                                                                                                                      |
 | `interactionUrl.ts`     | VCALM `interaction:` URL resolution                                                                                                                                                                                                                                                                          |
-| `appKey.ts`             | The App Connect app-key credential: matching, minting, the store-time refusal policy, and the legacy re-issue path                                                                                                                                                                                           |
+| `appKey.ts`             | The App Connect app-key credential: matching, minting, the store-time refusal policy                                                                                                                                                                                                                         |
 | `processRequest.ts`     | The pure request-to-response pipeline                                                                                                                                                                                                                                                                        |
 | `interactionRequest.ts` | `openInteractionRequest`: the answering wallet's one-call entry point over an interaction URL                                                                                                                                                                                                                |
 | `walletInput.ts`        | `classifyWalletInput` / `handleWalletInput`: the universal "scan or paste something" classifier                                                                                                                                                                                                              |
@@ -107,7 +107,8 @@ first, because the grammars are subsets of one another:
 
 Classification does no fetch, navigation, or storage. `handleWalletInput`
 dispatches the classified result to caller-supplied handlers; a kind with no
-handler throws, so a wallet that does not implement a grammar cannot silently
+handler throws `UnhandledWalletInputError` (carrying the `kind`; dispatch on
+`err.name`), so a wallet that does not implement a grammar cannot silently
 mishandle it. A `wasLink` or `connectCode` handler wired without its recognizer
 can never fire, and `handleWalletInput` logs a warning for it.
 

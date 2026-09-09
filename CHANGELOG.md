@@ -21,11 +21,12 @@
   URL and builds the interaction URL with the URL API.
 - `fetchInteractionProtocols` reports a non-JSON or `null` body as an error
   instead of throwing a raw `TypeError` / `SyntaxError`.
-- `appKeyCandidates` no longer treats a credential with a non-string `appUrl`
-  claim as a legacy (pre-`appUrl`) candidate.
 
 ### Changed
 
+- **Breaking:** `handleWalletInput` throws `UnhandledWalletInputError` (with a
+  `kind` property; dispatch on `err.name`) for an input kind with no handler,
+  instead of a bare `Error` recognizable only by its message.
 - **Breaking:** `deepLinkSchemes` prefixes are matched at a URL delimiter, so a
   bare-origin prefix no longer matches a lookalike host.
 - `handleWalletInput` warns when a `wasLink` / `connectCode` handler is wired
@@ -37,6 +38,11 @@
 
 ### Removed
 
+- **Breaking:** the legacy (pre-`appUrl`) app-key re-issue path:
+  `findLegacyAppKeyCredential`, `reissueAppKeyCredential`, `appKeyCandidates`'
+  undefined-`appUrl` selection, and `issueAppKeyCredential`'s `description`
+  option. No wallet called it; its only importer was a was-react counterpart
+  test.
 - **Breaking:** the deprecated `composeVP` alias, the `IVpRequest` / `IVpOffer`
   / `IVprDetails` / `IVprQuery` / `IDidAuthenticationQuery` type aliases,
   `EPHEMERAL_EXCHANGE_INTERACTION_PATH`, `hasAppConnectQuery`,

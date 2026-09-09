@@ -178,6 +178,9 @@ describe('handleWalletInput', () => {
         text: 'https://example.com/credential.json',
         handlers: { connectCode: () => 'nope' }
       })
-    ).rejects.toThrow(/Unhandled wallet input of kind "credentials"/)
+    ).rejects.toMatchObject({
+      name: 'UnhandledWalletInputError',
+      kind: 'credentials'
+    })
   })
 })

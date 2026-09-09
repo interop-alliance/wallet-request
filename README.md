@@ -38,7 +38,7 @@ Request exchange: everything between "the user scanned or pasted something" and
   response presentation, embedding any grants before signing so the DIDAuth
   proof covers them; `presentationSuite.ts` negotiates the cryptosuite.
 - **The App Connect app-key credential** -- `appKey.ts`: matching, minting, the
-  store-time refusal policy, and the legacy re-issue path.
+  store-time refusal policy.
 - **The `WalletOnboardingQuery` transport vocabulary** -- `onboarding.ts`: the
   inviter's compose helper and the enrollee's classification, over a query
   carrying the account pointer and controller.

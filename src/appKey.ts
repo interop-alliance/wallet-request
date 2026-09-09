@@ -283,16 +283,10 @@ function byIssuanceInstantDesc(
  * requesting origin. Sorting here (rather than after the binding check) lets
  * {@link findAppKeyCredential} stop at the newest credential that binds.
  *
- * The legacy path ({@link findLegacyAppKeyCredential}) is the same chain
- * with `appUrl` undefined: it selects the credentials carrying no
- * `credentialSubject.appUrl` claim, so one predicate set and one sort serve
- * both paths and a hardening applied here reaches the legacy path too.
- *
  * @param options {object}
  * @param options.credentials {IVerifiableCredential[]}
- * @param [options.appUrl] {string} - The request's `app.appUrl` in
- *   serialized form; undefined selects the legacy credentials that carry no
- *   `appUrl` claim.
+ * @param options.appUrl {string} - The request's `app.appUrl` in serialized
+ *   form.
  * @param options.origin {string} - The attested requesting origin.
  * @returns {IVerifiableCredential[]}
  */
@@ -302,16 +296,14 @@ export function appKeyCandidates({
   origin
 }: {
   credentials: IVerifiableCredential[]
-  appUrl: string | undefined
+  appUrl: string
   origin: string
 }): IVerifiableCredential[] {
-  // A legacy candidate (`appUrl` undefined) is one with no `appUrl` claim at
-  // all; a malformed (non-string) claim matches nothing.
   return credentials
     .filter(
       credential =>
         presentsAsAppKey(credential) &&
-        subjectField({ credential, field: 'appUrl' }) === appUrl &&
+        appKeyAppUrl(credential) === appUrl &&
         isSelfIssued(credential) &&
         appKeyOrigin(credential) === origin
     )
@@ -366,9 +358,9 @@ function defaultAppKeyDescription(appName: string): string {
  * the fixed two-entry type array, the hosted App Connect context URL, issuer
  * and subject both the seed-derived DID, and the `seed` / `appUrl` / `origin`
  * claims. `vc.issue` auto-fills `issuanceDate` in the canonical UTC form the
- * ranking expects. Shared by the fresh mint and the legacy re-issue, and
- * exported for an application's own self-issue path (dev-grant provisioning,
- * tests), so the credential's shape is maintained in one place.
+ * ranking expects. Behind the fresh mint, and exported for an application's
+ * own self-issue path (dev-grant provisioning, tests), so the credential's
+ * shape is maintained in one place.
  *
  * @param options {object}
  * @param options.seedBytes {Uint8Array} - The 32-byte master seed; the
@@ -378,8 +370,6 @@ function defaultAppKeyDescription(appName: string): string {
  * @param options.appUrl {string} - The app's canonical URL, already in
  *   serialized form.
  * @param options.origin {string} - The attested requesting origin.
- * @param [options.description] {string} - Overrides the default consent
- *   sentence (the legacy re-issue carries the old credential's forward).
  * @param [options.documentLoader] {IDocumentLoader} - JSON-LD loader; defaults
  *   to the shared security loader.
  * @returns {Promise<{ credential: IVerifiableCredential; subjectDid: string }>}
@@ -389,14 +379,12 @@ export async function issueAppKeyCredential({
   appName,
   appUrl,
   origin,
-  description = defaultAppKeyDescription(appName),
   documentLoader: loader = documentLoader
 }: {
   seedBytes: Uint8Array
   appName: string
   appUrl: string
   origin: string
-  description?: string
   documentLoader?: IDocumentLoader
 }): Promise<{ credential: IVerifiableCredential; subjectDid: string }> {
   const agent = await CapabilityAgent.fromSeed({
@@ -410,7 +398,7 @@ export async function issueAppKeyCredential({
     id: `urn:uuid:${crypto.randomUUID()}`,
     type: [...APP_KEY_TYPE_ARRAY],
     name: `${appName} app key`,
-    description,
+    description: defaultAppKeyDescription(appName),
     issuer: controllerDid,
     credentialSubject: {
       id: controllerDid,
@@ -461,104 +449,6 @@ export async function mintAppKeyCredential({
 }
 
 /**
- * The latest legacy app-key credential for an origin, or undefined. A legacy
- * credential predates the `appUrl` model: it carries the marker and a
- * per-app third type entry, but no `credentialSubject.appUrl` claim. Its
- * identity was scoped to (origin, `credentialType`), and the request no
- * longer carries a `credentialType` to select on, so the mapping is
- * recoverable only when it is unambiguous: when the binding legacy candidates
- * for the origin all name one subject DID. Two distinct legacy identities on
- * one origin yield undefined rather than a guess -- re-issuing the wrong one
- * would hand one application another's identity, which is worse than the
- * caller treating the connect as a first run.
- *
- * @param options {object}
- * @param options.credentials {IVerifiableCredential[]}
- * @param options.origin {string} - The attested requesting origin.
- * @returns {Promise<IVerifiableCredential | undefined>}
- */
-export async function findLegacyAppKeyCredential({
-  credentials,
-  origin
-}: {
-  credentials: IVerifiableCredential[]
-  origin: string
-}): Promise<IVerifiableCredential | undefined> {
-  const candidates = appKeyCandidates({
-    credentials,
-    appUrl: undefined,
-    origin
-  })
-  const bound: IVerifiableCredential[] = []
-  for (const candidate of candidates) {
-    if (await appKeySeedBindsSubject(candidate)) {
-      bound.push(candidate)
-    }
-  }
-  if (bound.length === 0) {
-    return undefined
-  }
-  const subjects = new Set(bound.map(credential => subjectId(credential)))
-  if (subjects.size > 1) {
-    return undefined
-  }
-  return bound[0]
-}
-
-/**
- * Re-issues a legacy app-key credential in place under the `appUrl` model:
- * the same seed (so the same derived DID -- the app's identity and its
- * encrypted-data access are preserved), the fixed two-entry type array, the
- * hosted App Connect context URL, and the `credentialSubject.appUrl` claim set
- * from the validated request value. A fresh mint would roll the seed and orphan
- * the identity, and must never be the migration path. The fresh
- * `issuanceDate` ranks the re-issued credential ahead of the legacy one, so
- * subsequent connects match it directly.
- *
- * Does NOT store the result; the caller stores it through the mint door
- * (it satisfies {@link assertMintedAppKey}) and may retire the legacy record.
- *
- * @param options {object}
- * @param options.credential {IVerifiableCredential} - The legacy credential;
- *   it must bind per {@link appKeySeedBindsSubject} and be bound to `origin`,
- *   else this throws {@link AppKeyMintInvariantError}.
- * @param options.app {IAppConnectApp} - The validated app identity; its
- *   `appUrl` must already be in serialized form.
- * @param options.origin {string} - The attested requesting origin.
- * @returns {Promise<{ credential: IVerifiableCredential; subjectDid: string }>}
- */
-export async function reissueAppKeyCredential({
-  credential,
-  app,
-  origin
-}: {
-  credential: IVerifiableCredential
-  app: IAppConnectApp
-  origin: string
-}): Promise<{ credential: IVerifiableCredential; subjectDid: string }> {
-  if (
-    !(await appKeySeedBindsSubject(credential)) ||
-    appKeyOrigin(credential) !== origin
-  ) {
-    throw new AppKeyMintInvariantError()
-  }
-  const seedBytes = appKeySeedBytes(credential)
-  if (!seedBytes) {
-    throw new AppKeyMintInvariantError()
-  }
-  const legacyDescription = (credential as { description?: unknown })
-    .description
-  return issueAppKeyCredential({
-    seedBytes,
-    appName: app.name,
-    appUrl: app.appUrl,
-    origin,
-    description:
-      typeof legacyDescription === 'string' ? legacyDescription : undefined
-  })
-}
-
-/**
  * The subject DID (`credentialSubject.id`) of an app-key credential, or
  * undefined. For a valid app-key credential this equals the issuer.
  *
@@ -576,9 +466,9 @@ export function appKeySubjectDid(
  * (`credentialSubject.seed`, base64url-no-pad), or undefined when it is absent
  * or malformed. This is the app's client secret, the root of its identity and
  * of the keys it encrypts its own data with. The wallet reads it only to
- * re-derive the credential's subject DID ({@link appKeySeedBindsSubject}) and
- * to re-issue a legacy credential under the same identity; nothing downstream
- * of the match takes the seed, so it never reaches the grant path.
+ * re-derive the credential's subject DID ({@link appKeySeedBindsSubject});
+ * nothing downstream of the match takes the seed, so it never reaches the
+ * grant path.
  *
  * @param credential {IVerifiableCredential}
  * @returns {Uint8Array | undefined}
@@ -655,7 +545,7 @@ export function appKeyOrigin(
 
 /**
  * The application URL (`credentialSubject.appUrl`) an app-key credential is
- * scoped to, when present. Absent on a legacy (pre-`appUrl`) credential.
+ * scoped to, when present.
  *
  * @param credential {IVerifiableCredential}
  * @returns {string | undefined}
