@@ -1,6 +1,6 @@
 # @interop/wallet-request Changelog
 
-## 0.3.0 - TBD
+## 0.3.0 - 2026-09-09
 
 ### Changed
 
