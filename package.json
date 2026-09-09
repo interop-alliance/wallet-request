@@ -43,12 +43,12 @@
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "dependencies": {
+    "@interop/capability-agent": "^0.1.0",
     "@interop/data-integrity-core": "^8.7.1",
     "@interop/data-integrity-proof": "^3.4.5",
     "@interop/ed25519-signature": "^7.2.1",
     "@interop/security-document-loader": "^10.1.1",
     "@interop/vc": "^11.0.8",
-    "@interop/webkms-client": "^14.7.5",
     "@scure/base": "^2.3.0",
     "byoe-context": "^0.5.0"
   },

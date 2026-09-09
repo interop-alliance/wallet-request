@@ -1,5 +1,13 @@
 # @interop/wallet-request Changelog
 
+## 0.3.0 - TBD
+
+### Changed
+
+- `CapabilityAgent` now comes from `@interop/capability-agent`; the
+  `@interop/webkms-client` dependency is dropped. The app key derivation is
+  unchanged.
+
 ## 0.2.0 - 2026-09-09
 
 ### Fixed

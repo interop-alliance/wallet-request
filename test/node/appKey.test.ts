@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { base64urlnopad } from '@scure/base'
-import { CapabilityAgent } from '@interop/webkms-client'
+import { CapabilityAgent } from '@interop/capability-agent'
 import {
   APP_CONNECT_CONTEXT_URL,
   APP_KEY_KEY_NAME,

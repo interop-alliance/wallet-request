@@ -26,7 +26,7 @@
  */
 import * as vc from '@interop/vc'
 import { base64urlnopad } from '@scure/base'
-import { CapabilityAgent } from '@interop/webkms-client'
+import { CapabilityAgent } from '@interop/capability-agent'
 import { Ed25519Signature2020 } from '@interop/ed25519-signature'
 import type {
   IDocumentLoader,
