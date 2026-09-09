@@ -1,7 +1,7 @@
 {
-  "name": "@interop/isomorphic-lib-template",
-  "description": "A Typescript/Javascript isomorphic library template, for use in the browser, Node.js, and React Native.",
-  "version": "0.0.1",
+  "name": "@interop/wallet-request",
+  "description": "Wallet-request and exchange protocol handling for Interop wallet apps: input classification, VPR parsing, QueryByExample matching, cryptosuite negotiation, VP composition, the App Connect app-key credential, and the VC-API / ephemeral-exchange clients.",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
@@ -13,10 +13,11 @@
     "prepare": "pnpm run build",
     "rebuild": "pnpm run clear && pnpm run build",
     "typecheck": "tsc -p tsconfig.dev.json",
-    "test": "pnpm run fix && pnpm run lint && pnpm run typecheck && pnpm run test:node && pnpm run test:browser",
+    "test": "pnpm run fix && pnpm run lint && pnpm run typecheck && pnpm run test:node && pnpm run test:dist",
     "test:browser": "playwright test",
     "test:node": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:dist": "pnpm run build && ! grep -rl @interop/logger dist"
   },
   "files": [
     "dist",
@@ -29,6 +30,12 @@
       "react-native": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./matching": {
+      "types": "./dist/matching.d.ts",
+      "react-native": "./dist/matching.js",
+      "import": "./dist/matching.js",
+      "default": "./dist/matching.js"
     }
   },
   "module": "dist/index.js",
@@ -36,9 +43,19 @@
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "dependencies": {
+    "@interop/data-integrity-core": "^8.7.1",
+    "@interop/data-integrity-proof": "^3.4.5",
+    "@interop/ed25519-signature": "^7.2.1",
+    "@interop/security-document-loader": "^10.1.1",
+    "@interop/vc": "^11.0.8",
+    "@interop/webkms-client": "^14.7.5",
+    "@scure/base": "^2.3.0",
+    "byoe-context": "^0.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@interop/ed25519-verification-key": "^8.1.0",
+    "@interop/logger": "^0.2.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.7",
@@ -57,9 +74,14 @@
     "provenance": true
   },
   "keywords": [
+    "wallet",
+    "verifiable-credentials",
+    "verifiable-presentation-request",
+    "vc-api",
+    "app-connect",
     "isomorphic"
   ],
-  "packageManager": "pnpm@11.5.0",
+  "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457",
   "engines": {
     "node": ">=24.0"
   },
@@ -70,8 +92,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/interop-alliance/isomorphic-lib-template.git"
+    "url": "git+https://github.com/interop-alliance/wallet-request.git"
   },
-  "homepage": "https://github.com/interop-alliance/isomorphic-lib-template",
-  "bugs": "https://github.com/interop-alliance/isomorphic-lib-template/issues"
+  "homepage": "https://github.com/interop-alliance/wallet-request",
+  "bugs": "https://github.com/interop-alliance/wallet-request/issues"
 }
