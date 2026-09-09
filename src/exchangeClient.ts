@@ -317,14 +317,17 @@ export async function submitPresentation({
  * Sends the whole Wallet Response object -- a VP and/or delegated `zcap`s -- to
  * an exchanger endpoint (DCW's response envelope, which threads the grants
  * *beside* the VP rather than embedding them inside it). Returns the parsed JSON
- * reply, or `null` for an empty body. Kept alongside `submitPresentation` (whose
- * envelope carries only the VP) because the two apps POST different shapes.
+ * reply, or `{}` for an empty body. Kept alongside `submitPresentation` (whose
+ * envelope carries only the VP) because the two apps POST different shapes;
+ * both go through `postToExchange`, so a `404` is reported as
+ * {@link EphemeralExchangeGoneError} and any other non-2xx status throws
+ * rather than passing an error body off as the peer's reply.
  *
  * @param options {object}
  * @param options.exchangeUrl {string}
  * @param options.payload {{ verifiablePresentation?, zcap? }}
  * @param [options.fetch] {FetchLike}
- * @returns {Promise<unknown>}
+ * @returns {Promise<VCAPIExchangeResponse>}
  */
 export async function sendToExchanger({
   exchangeUrl,
@@ -337,12 +340,6 @@ export async function sendToExchanger({
     zcap?: IZcap[]
   }
   fetch?: FetchLike
-}): Promise<unknown> {
-  const response = await fetch(exchangeUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  const text = await response.text()
-  return text ? JSON.parse(text) : null
+}): Promise<VCAPIExchangeResponse> {
+  return postToExchange({ url: exchangeUrl, body: payload, fetch })
 }

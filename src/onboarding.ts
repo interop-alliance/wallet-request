@@ -56,7 +56,7 @@ function isWebvhDid(did: string | undefined): did is string {
  * value must parse as an absolute URL and must be `http:` or `https:` (it is
  * dereferenced as a WAS server base URL) and must not carry a fragment; any
  * violation throws. Compose and classification share this one rule, so the
- * spelling the inviter publishes is the spelling the enrollee resolves, and
+ * form the inviter publishes is the form the enrollee resolves, and
  * URLs differing only in a default port, percent-encoding case, or dot
  * segments do not name distinct servers.
  *
@@ -201,10 +201,10 @@ export function walletOnboardingRequestOf({
 }: {
   queries: IVPRQuery[]
 }): IWalletOnboardingRequest | null {
-  const onboardingQuery = exclusiveQueryOf({
+  const onboardingQuery = exclusiveQueryOf<IWalletOnboardingQuery>({
     queries,
     typeName: 'WalletOnboardingQuery'
-  }) as unknown as IWalletOnboardingQuery | null
+  })
   if (onboardingQuery === null) {
     return null
   }

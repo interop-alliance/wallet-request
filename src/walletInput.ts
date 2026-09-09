@@ -52,6 +52,7 @@
  * matches, so the ordering above is preserved whichever subset is wired.
  */
 import { isInteractionUrl } from './interactionUrl.js'
+import { log } from './log.js'
 import {
   isWalletApiMessage,
   parseWalletApiMessage,
@@ -88,12 +89,43 @@ function queryParamsOf(text: string): URLSearchParams {
 }
 
 /**
+ * Whether a link is on one of the app's registered link prefixes. The match is
+ * anchored at a URL delimiter: after the prefix the text must end or continue
+ * with `/`, `?`, or `#`, unless the prefix itself already ends in a delimiter
+ * (`dccrequest://`, `https://lcw.app/`). A bare-origin prefix such as
+ * `https://wallet.example.com` therefore matches `https://wallet.example.com/x`
+ * but not the lookalike host `https://wallet.example.com.evil.org/x`, which a
+ * plain `startsWith` would route to the app's own link handling.
+ *
+ * @param options {object}
+ * @param options.text {string}
+ * @param options.prefix {string}
+ * @returns {boolean}
+ */
+function matchesLinkPrefix({
+  text,
+  prefix
+}: {
+  text: string
+  prefix: string
+}): boolean {
+  if (!text.startsWith(prefix)) {
+    return false
+  }
+  if (/[/?#:]$/.test(prefix)) {
+    return true
+  }
+  const next = text.charAt(prefix.length)
+  return next === '' || next === '/' || next === '?' || next === '#'
+}
+
+/**
  * The account-convention recognizers a caller injects, one per grammar the
  * classifier recognizes but does not own. Each is a predicate over the
  * trimmed input; an absent one means the branch never matches. A wallet on a
  * WAS account passes `@interop/wallet-core`'s own predicates
  * (`isWasLinkPayload` from `space`, `isConnectCode` from `enrollment`), so
- * the grammar keeps its one spelling there.
+ * the grammar keeps its one definition there.
  */
 export interface WalletInputRecognizers {
   /**
@@ -113,9 +145,10 @@ export interface WalletInputRecognizers {
  * @param text {string}   the scanned, pasted, or opened text
  * @param [options] {object}
  * @param [options.deepLinkSchemes] {string[]}   the link prefixes this app has
- *   registered (custom protocols and universal app links). Empty, the
- *   deep-link and legacy-request branches never match -- a wallet with no
- *   registered links has nothing to route them to
+ *   registered (custom protocols and universal app links), matched at a URL
+ *   delimiter per {@link matchesLinkPrefix}. Empty, the deep-link and
+ *   legacy-request branches never match -- a wallet with no registered links
+ *   has nothing to route them to
  * @param [options.recognizers] {WalletInputRecognizers}   the account-
  *   convention predicates for the `was-link` and `connect-code` branches.
  *   Absent, neither branch ever matches
@@ -137,7 +170,9 @@ export function classifyWalletInput(
     return { kind: 'connect-code', text: trimmed }
   }
 
-  const isDeepLink = deepLinkSchemes.some(scheme => trimmed.startsWith(scheme))
+  const isDeepLink = deepLinkSchemes.some(prefix =>
+    matchesLinkPrefix({ text: trimmed, prefix })
+  )
   if (isDeepLink) {
     const params = queryParamsOf(trimmed)
     if (params.has('vc_request_url') && params.has('issuer')) {
@@ -217,6 +252,15 @@ export async function handleWalletInput<T>({
   recognizers?: WalletInputRecognizers
   handlers: WalletInputHandlers<T>
 }): Promise<T> {
+  // A handler for a grammar this package does not own can only fire through
+  // its recognizer; a handler wired without one is unreachable, which nothing
+  // else would ever report.
+  if (handlers.wasLink && !recognizers?.isWasLink) {
+    log.warn('handlers.wasLink is set but recognizers.isWasLink is not')
+  }
+  if (handlers.connectCode && !recognizers?.isConnectCode) {
+    log.warn('handlers.connectCode is set but recognizers.isConnectCode is not')
+  }
   const input = classifyWalletInput(text, { deepLinkSchemes, recognizers })
   switch (input.kind) {
     case 'was-link':

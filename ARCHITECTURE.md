@@ -28,7 +28,8 @@ Two properties hold everywhere in `src/`:
 - **No I/O of its own, except where injected.** Classification (`walletInput`,
   `parse`, `classify`) never fetches, navigates, or stores. The exchange clients
   (`exchangeClient`, `interactionUrl`, `ephemeralExchange`) take an injected
-  `FetchLike` rather than calling `fetch` directly.
+  `FetchLike` rather than calling `fetch` directly. The one exception is the
+  signing path's JSON-LD document loader (see "The document loader" below).
 - **Pure derivation out, consent and formatting in the caller.**
   `processRequest` is pure: consent and the response channel stay with the app,
   and zcap / App Connect processing arrive as injected `RequestProcessors`.
@@ -85,7 +86,6 @@ root barrel:                 index.ts re-exports every module, plus
 | `interactionRequest.ts` | `openInteractionRequest`: the answering wallet's one-call entry point over an interaction URL                                                                                                                                                                                                                |
 | `walletInput.ts`        | `classifyWalletInput` / `handleWalletInput`: the universal "scan or paste something" classifier                                                                                                                                                                                                              |
 | `index.ts`              | The root barrel; re-exports every module plus `setLogger` / `Logger`                                                                                                                                                                                                                                         |
-| `declarations.d.ts`     | Ambient module declaration for `jsonld`                                                                                                                                                                                                                                                                      |
 
 ## The wallet-input classifier (`walletInput.ts`)
 
@@ -97,7 +97,9 @@ first, because the grammars are subsets of one another:
 2. `connect-code` (an account convention's prefix)
 3. `legacy-request` (deep link with both `vc_request_url` and `issuer`)
 4. `interaction-url` (VCALM `interaction:` scheme or `iuv=1`)
-5. `deep-link` (any other registered-scheme link)
+5. `deep-link` (any other registered-scheme link; a `deepLinkSchemes` prefix is
+   matched at a URL delimiter, so a bare-origin prefix does not match a
+   lookalike host such as `https://wallet.example.com.evil.org`)
 6. `wallet-api-message` (raw JSON, or a `request` parameter on a non-registered
    link)
 7. `credentials` (raw VC/VP JSON or a URL to fetch) -- last, since it cannot be
@@ -106,7 +108,8 @@ first, because the grammars are subsets of one another:
 Classification does no fetch, navigation, or storage. `handleWalletInput`
 dispatches the classified result to caller-supplied handlers; a kind with no
 handler throws, so a wallet that does not implement a grammar cannot silently
-mishandle it.
+mishandle it. A `wasLink` or `connectCode` handler wired without its recognizer
+can never fire, and `handleWalletInput` logs a warning for it.
 
 ### The wallet-core conventions the classifier recognizes
 
@@ -143,8 +146,9 @@ which wallet is asking.
    runs most-specific first (see above); reordering it changes which grammar a
    piece of ambiguous text is read as.
 2. **No fetch, navigate, or store during classification.** `walletInput.ts`,
-   `parse.ts`, and `classify.ts` do none of the three. The one network seam in
-   the package is the exchange clients' injected `FetchLike`.
+   `parse.ts`, and `classify.ts` do none of the three. The network seams in the
+   package are the exchange clients' injected `FetchLike` and the signing path's
+   document loader (below).
 3. **The App Connect `appUrl` origin rule.** An `AppConnectQuery`'s `app.appUrl`
    must parse as an absolute URL, carry no fragment, and be same-origin with the
    attested requesting origin. An opaque origin serializes as `"null"` and is
@@ -160,7 +164,10 @@ which wallet is asking.
    with `QueryByExample`, standalone capability queries, or an
    `AppConnectQuery`; `appConnectRequestOf` refuses the mixture from its own
    side too. `queryPredicates.ts`'s exclusive-query-type set is the one place
-   that mutual exclusion is defined.
+   that mutual exclusion is defined, and `processRequest` reads it through
+   `exclusiveQueryTypeOf`: an exclusive type it has no processor for (today the
+   `WalletOnboardingQuery`, which a wallet routes to its own flow) is refused,
+   not answered as an empty generic response.
 6. **Grants go inside the VP before signing.** `composeVp.ts` embeds grants in
    the presentation before it is signed, so the DIDAuth proof covers them.
 7. **App keys are wallet-minted, not imported.** `appKey.ts`'s store-time
@@ -181,6 +188,19 @@ which wallet is asking.
     `Logger` type lives in `test/node/log.test.ts` instead. Every other call
     site in `src/` may only take `@interop/logger` as a type-only import,
     enforced by an eslint `no-restricted-imports` rule.
+
+### The document loader
+
+`composeVp.ts` builds the module-level `documentLoader` the signing paths
+(`composeVp`, `issueAppKeyCredential`) canonicalize with. It bundles the
+standard security contexts and the App Connect context, and it is built with
+`fetchRemoteContexts: true`, so a credential whose `@context` names a URL that
+is not bundled is resolved over a live HTTPS GET through the global `fetch`.
+This is the one network path in the package that does not go through an injected
+`FetchLike`: it runs inside JSON-LD canonicalization, where the loader is the
+seam, not `fetch`. A wallet that must keep signing offline, or route the GET
+through its own transport, passes its own loader as `composeVp`'s
+`documentLoader` option.
 
 ## Ownership heuristics
 

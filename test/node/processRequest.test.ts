@@ -11,7 +11,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   domainMatchesOrigin,
-  hasAppConnectQuery,
+  exclusiveQueryTypeOf,
   processRequest
 } from '../../src/index.js'
 import type {
@@ -60,13 +60,30 @@ describe('domainMatchesOrigin', () => {
   })
 })
 
-describe('hasAppConnectQuery', () => {
-  it('is true exactly when an AppConnectQuery is in the set', () => {
-    expect(hasAppConnectQuery([])).toBe(false)
-    expect(hasAppConnectQuery([queryOfType('DIDAuthentication')])).toBe(false)
+describe('exclusiveQueryTypeOf', () => {
+  it('names the exclusive type a query set carries', () => {
+    expect(exclusiveQueryTypeOf([])).toBeUndefined()
     expect(
-      hasAppConnectQuery([queryOfType('DIDAuthentication'), appConnectQuery()])
-    ).toBe(true)
+      exclusiveQueryTypeOf([queryOfType('DIDAuthentication')])
+    ).toBeUndefined()
+    expect(
+      exclusiveQueryTypeOf([
+        queryOfType('DIDAuthentication'),
+        appConnectQuery()
+      ])
+    ).toBe('AppConnectQuery')
+    expect(exclusiveQueryTypeOf([queryOfType('WalletOnboardingQuery')])).toBe(
+      'WalletOnboardingQuery'
+    )
+  })
+
+  it('throws on a mixture with a non-exclusive query', () => {
+    expect(() =>
+      exclusiveQueryTypeOf([
+        queryOfType('WalletOnboardingQuery'),
+        queryOfType('QueryByExample')
+      ])
+    ).toThrow(/cannot be combined/)
   })
 })
 
@@ -85,6 +102,25 @@ describe('processRequest', () => {
         credentialRequestOrigin: 'https://other.example'
       })
     ).rejects.toThrow(/does not match request origin/)
+  })
+
+  it('refuses a WalletOnboardingQuery instead of answering it as empty', async () => {
+    const presentationSigner = await makePresentationSigner()
+    const onboarding = queryOfType('WalletOnboardingQuery', {
+      host: 'https://was.example',
+      did: 'did:key:z6Mk',
+      spaceId: 'urn:uuid:1',
+      controller: 'did:key:z6Mk'
+    })
+    await expect(
+      processRequest({ request: { query: onboarding }, presentationSigner })
+    ).rejects.toThrow(/WalletOnboardingQuery request has no processor/)
+    await expect(
+      processRequest({
+        request: { query: [onboarding, queryOfType('QueryByExample')] },
+        presentationSigner
+      })
+    ).rejects.toThrow(/cannot be combined/)
   })
 
   it('returns {} when there is nothing to send', async () => {

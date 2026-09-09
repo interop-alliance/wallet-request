@@ -68,7 +68,7 @@ export function parseInteractionUrl(url: string): string {
  * Fetches the interaction protocols response from a VCALM interaction URL. Sends
  * GET with `Accept: application/json` per the VCALM spec, and returns the
  * protocols map. Logs a warning if the `iuv` param value is not `1`; throws if
- * the response is not ok or the `protocols` key is missing. A `404` is reported
+ * the response is not ok, is not JSON, or lacks the `protocols` key. A `404` is reported
  * as {@link EphemeralExchangeGoneError} (dispatch on `err.name`): the
  * interaction URL points at an exchange that expired or was never there.
  *
@@ -108,11 +108,19 @@ export async function fetchInteractionProtocols(
     )
   }
 
-  const body = await response.json()
-
-  if (!body.protocols || typeof body.protocols !== 'object') {
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch (err) {
+    throw new Error('Interaction URL response is not JSON.', { cause: err })
+  }
+  const protocols =
+    body && typeof body === 'object'
+      ? (body as { protocols?: unknown }).protocols
+      : undefined
+  if (!protocols || typeof protocols !== 'object') {
     throw new Error('Interaction URL response missing "protocols" map.')
   }
 
-  return body.protocols
+  return protocols as Record<string, string>
 }

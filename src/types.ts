@@ -36,9 +36,8 @@ import type {
 } from '@interop/data-integrity-core/vpr'
 
 // Re-export the canonical VPR vocabulary so `@interop/wallet-request`
-// consumers pull the message types from one package. The deprecated `IVp*`
-// spellings ride along for the apps that still import them. The vocabulary is
-// pulled from the `/vpr` subpath (see the module note below).
+// consumers pull the message types from one package. The vocabulary is pulled
+// from the `/vpr` subpath (see the module note below).
 export type {
   IVPRequest,
   IVPOffer,
@@ -56,12 +55,7 @@ export type {
   IInvocationTarget,
   IAllowedAction,
   WalletApiMessage,
-  WalletResponse,
-  IVpRequest,
-  IVpOffer,
-  IVprDetails,
-  IVprQuery,
-  IDidAuthenticationQuery
+  WalletResponse
 } from '@interop/data-integrity-core/vpr'
 export type {
   IVerifiableCredential,
@@ -179,7 +173,7 @@ export type IAppConnectCapabilityQuery = Omit<
 
 /**
  * The app identity an App Connect request presents: a display `name` for the
- * consent surface (attacker-controlled free text, never evidence of identity)
+ * consent surface (attacker-controlled free text, not evidence of identity)
  * and the application's canonical `appUrl`, which scopes the app-key identity
  * within the requesting origin. Validated by `appConnectRequestOf`: the
  * `appUrl` must parse as an absolute URL, carry no fragment, and be

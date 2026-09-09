@@ -186,6 +186,13 @@ describe('isDIDAuthOnlyRequest', () => {
     expect(isDIDAuthOnlyRequest(message)).toBe(false)
   })
 
+  it('is false when the verifiablePresentationRequest is not an object', () => {
+    const message = {
+      verifiablePresentationRequest: null
+    } as unknown as WalletApiMessage
+    expect(isDIDAuthOnlyRequest(message)).toBe(false)
+  })
+
   it('skips null and untyped entries the way classification does', () => {
     const message = {
       verifiablePresentationRequest: {
@@ -209,7 +216,7 @@ describe('isDIDAuthOnlyRequest', () => {
       }
     }
     expect(() => isDIDAuthOnlyRequest(message)).toThrow(
-      /More than one DIDAuthentication request/
+      /More than one DIDAuthentication/
     )
   })
 })
@@ -227,7 +234,7 @@ describe('parseWalletApiMessage (multiple DIDAuthentication queries)', () => {
 
   it('rejects the request at the parse boundary', () => {
     expect(() => parseWalletApiMessage({ messageObject })).toThrow(
-      /More than one DIDAuthentication request/
+      /More than one DIDAuthentication/
     )
   })
 
@@ -239,7 +246,7 @@ describe('parseWalletApiMessage (multiple DIDAuthentication queries)', () => {
     expect(parsed).toBeDefined()
     expect(() =>
       parseWalletApiMessage({ messageObject: parsed as object })
-    ).toThrow(/More than one DIDAuthentication request/)
+    ).toThrow(/More than one DIDAuthentication/)
   })
 
   it('still accepts a single DIDAuthentication query', () => {

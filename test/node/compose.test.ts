@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { CONTEXT_URL_V1 as APP_CONNECT_CONTEXT_URL } from 'byoe-context'
-import { composeVp, composeVP, EDDSA_RDFC_2022 } from '../../src/index.js'
+import { composeVp, EDDSA_RDFC_2022 } from '../../src/index.js'
 import { makePresentationSigner } from './fixtures/signer.js'
 import { mockCredential, mockCredentialV2 } from './fixtures/credentials.js'
 
@@ -130,10 +130,6 @@ describe('composeVp', () => {
     const context = vp['@context']
     const contextList = Array.isArray(context) ? context : [context]
     expect(contextList).toContain('https://www.w3.org/ns/credentials/v2')
-  })
-
-  it('exposes the deprecated composeVP spelling as the same function', () => {
-    expect(composeVP).toBe(composeVp)
   })
 })
 

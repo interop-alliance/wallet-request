@@ -37,7 +37,7 @@ export function isWalletApiMessage(text: string): boolean {
   let messageObject
   try {
     messageObject = JSON.parse(text)
-  } catch (_) {
+  } catch {
     return false
   }
   return (
@@ -104,7 +104,10 @@ export function parseWalletApiMessage({
 /**
  * Extracts and parses the wallet API message carried in a deep-link URL's
  * `request` query parameter (`dccrequest://...?request=<json>`). Returns
- * `undefined` when the parameter is absent or its value is not valid JSON.
+ * `undefined` when the parameter is absent, its value is not valid JSON, or the
+ * JSON is not an object. None of those is an error: a link on an unregistered
+ * scheme routinely carries an unrelated `request` parameter, and the caller
+ * simply goes on to the next classification branch.
  *
  * @param options {object}
  * @param options.url {string}
@@ -125,16 +128,20 @@ export function parseWalletApiUrl({
     // URL does not contain a "request" parameter.
     return undefined
   }
+  let parsed: unknown
   try {
     // `URLSearchParams.get` has already percent-decoded the value.
-    return JSON.parse(messageText) as Record<string, unknown>
+    parsed = JSON.parse(messageText)
   } catch (err) {
-    log.error('Error parsing incoming wallet API message', {
-      messageText,
+    log.debug('The "request" parameter is not JSON; not a wallet API URL', {
       err
     })
     return undefined
   }
+  if (!parsed || typeof parsed !== 'object') {
+    return undefined
+  }
+  return parsed as Record<string, unknown>
 }
 
 /**
@@ -158,9 +165,10 @@ export function zcapsRequested({ queries }: { queries: IVPRQuery[] }): {
 
 /**
  * Returns true if the message is a VPR whose only query type is
- * `DIDAuthentication` (i.e. no credential sharing is involved). The query set
- * is read through `queriesOf`, so a `null` or untyped entry is skipped here
- * exactly as classification skips it. Throws when the query set names
+ * `DIDAuthentication` (i.e. no credential sharing is involved). A request whose
+ * `verifiablePresentationRequest` is not an object has no query set and is not
+ * DID-Auth-only. The query set is read through `queriesOf`, so a `null` or
+ * untyped entry is skipped here exactly as classification skips it. Throws when the query set names
  * `DIDAuthentication` more than once, matching what classification would
  * otherwise reject after the request was accepted.
  *
@@ -171,8 +179,12 @@ export function isDIDAuthOnlyRequest(message: WalletApiMessage): boolean {
   if (!('verifiablePresentationRequest' in message)) {
     return false
   }
+  const details = message.verifiablePresentationRequest
+  if (!details || typeof details !== 'object') {
+    return false
+  }
   assertSingleDIDAuthQuery(message)
-  const queries = queriesOf(message.verifiablePresentationRequest)
+  const queries = queriesOf(details)
   return (
     queries.length > 0 &&
     queries.every(entry => entry.type === 'DIDAuthentication')

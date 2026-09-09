@@ -229,9 +229,3 @@ export async function composeVp({
     suite
   })) as IVerifiablePresentation
 }
-
-/**
- * @deprecated Use {@link composeVp}. Retained for Freewallet, which imports the
- * `composeVP` spelling.
- */
-export const composeVP = composeVp

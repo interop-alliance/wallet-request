@@ -70,7 +70,7 @@ const VC_1_CONTEXT_URL = 'https://www.w3.org/2018/credentials/v1'
  * internal consistency, never its provenance (a fully attacker-generated
  * credential binds perfectly). That is exactly why external ingest refuses on
  * the marker alone, binding or not ({@link assertStorableAppKey}): app keys
- * are wallet-minted, never imported.
+ * are wallet-minted only, and are not imported.
  */
 export const APP_KEY_CREDENTIAL_TYPE = 'AppKeyCredential'
 
@@ -138,7 +138,7 @@ export class AppKeyRefusedError extends Error {
  * app's `origin` and `appUrl`, self-issued), and storing it would make its
  * DID the controller the wallet delegates the user's storage to. So there is
  * no "binds, so it stores" carve-out here: app-key credentials are
- * wallet-minted, never imported, and only the wallet's own mint path may
+ * wallet-minted only, not imported, and only the wallet's own mint path may
  * store one.
  *
  * A credential with no marker is left alone, so an ordinary credential that
@@ -239,7 +239,7 @@ function isSelfIssued(credential: IVerifiableCredential): boolean {
  * The instant a credential's `issuanceDate` denotes, or NaN when it is
  * absent, not a string, or does not parse. Ranking is over instants, not raw
  * strings: the ranking decides which DID the wallet delegates to, so a
- * comparison manipulable by the *spelling* of a date (a numeric offset,
+ * comparison manipulable by the serialization of a date (a numeric offset,
  * differing fractional-second precision) would reopen the planted-credential
  * path in a narrower form.
  */
@@ -305,11 +305,13 @@ export function appKeyCandidates({
   appUrl: string | undefined
   origin: string
 }): IVerifiableCredential[] {
+  // A legacy candidate (`appUrl` undefined) is one with no `appUrl` claim at
+  // all; a malformed (non-string) claim matches nothing.
   return credentials
     .filter(
       credential =>
         presentsAsAppKey(credential) &&
-        appKeyAppUrl(credential) === appUrl &&
+        subjectField({ credential, field: 'appUrl' }) === appUrl &&
         isSelfIssued(credential) &&
         appKeyOrigin(credential) === origin
     )
@@ -584,15 +586,58 @@ export function appKeySubjectDid(
 function appKeySeedBytes(
   credential: IVerifiableCredential
 ): Uint8Array | undefined {
-  const subject = credential.credentialSubject as { seed?: unknown } | undefined
-  if (!subject || typeof subject.seed !== 'string') {
+  const seed = subjectStringField({ credential, field: 'seed' })
+  if (seed === undefined) {
     return undefined
   }
   try {
-    return base64urlnopad.decode(subject.seed)
+    return base64urlnopad.decode(seed)
   } catch {
     return undefined
   }
+}
+
+/**
+ * A raw `credentialSubject` claim, or undefined when the subject is not an
+ * object or the claim is absent.
+ *
+ * @param options {object}
+ * @param options.credential {IVerifiableCredential}
+ * @param options.field {string}
+ * @returns {unknown}
+ */
+function subjectField({
+  credential,
+  field
+}: {
+  credential: IVerifiableCredential
+  field: string
+}): unknown {
+  const subject = credential.credentialSubject as
+    | Record<string, unknown>
+    | undefined
+  return subject && typeof subject === 'object' ? subject[field] : undefined
+}
+
+/**
+ * A `credentialSubject` claim narrowed to a string, or undefined when it is
+ * absent or not a string. The one reader behind the `seed`, `origin`, and
+ * `appUrl` accessors.
+ *
+ * @param options {object}
+ * @param options.credential {IVerifiableCredential}
+ * @param options.field {string}
+ * @returns {string | undefined}
+ */
+function subjectStringField({
+  credential,
+  field
+}: {
+  credential: IVerifiableCredential
+  field: string
+}): string | undefined {
+  const value = subjectField({ credential, field })
+  return typeof value === 'string' ? value : undefined
 }
 
 /**
@@ -605,12 +650,7 @@ function appKeySeedBytes(
 export function appKeyOrigin(
   credential: IVerifiableCredential
 ): string | undefined {
-  const subject = credential.credentialSubject as
-    | { origin?: unknown }
-    | undefined
-  return subject && typeof subject.origin === 'string'
-    ? subject.origin
-    : undefined
+  return subjectStringField({ credential, field: 'origin' })
 }
 
 /**
@@ -623,10 +663,5 @@ export function appKeyOrigin(
 export function appKeyAppUrl(
   credential: IVerifiableCredential
 ): string | undefined {
-  const subject = credential.credentialSubject as
-    | { appUrl?: unknown }
-    | undefined
-  return subject && typeof subject.appUrl === 'string'
-    ? subject.appUrl
-    : undefined
+  return subjectStringField({ credential, field: 'appUrl' })
 }

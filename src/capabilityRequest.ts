@@ -33,7 +33,7 @@ import { normalizeAgentName } from './classify.js'
  *   echoes in its response presentation
  * @param [options.agent] {{ name: string }}   the requester's self-declared
  *   display name, carried as the VPR's root `agent` member; shown at consent
- *   as what the agent calls itself, never as verified identity. Validated by
+ *   as what the agent calls itself, not as verified identity. Validated by
  *   `normalizeAgentName` (trimmed, 1 to 64 characters, no control
  *   characters), so a name the wallet would refuse fails here first.
  * @returns {IVPRDetails}

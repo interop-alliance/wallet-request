@@ -282,13 +282,49 @@ describe('sendToExchanger (whole-response envelope)', () => {
     })
   })
 
-  it('returns null for an empty response body', async () => {
+  it('returns {} for an empty response body', async () => {
     const fetch = mockFetch({ body: '' })
     const result = await sendToExchanger({
       exchangeUrl: EXCHANGE_URL,
       payload: { verifiablePresentation: PRESENTATION },
       fetch
     })
-    expect(result).toBeNull()
+    expect(result).toEqual({})
+  })
+
+  it('reports a 404 as EphemeralExchangeGoneError', async () => {
+    const fetch = mockFetch({ status: 404, body: '' })
+    await expect(
+      sendToExchanger({
+        exchangeUrl: EXCHANGE_URL,
+        payload: {},
+        fetch
+      })
+    ).rejects.toMatchObject({ name: 'EphemeralExchangeGoneError' })
+  })
+
+  it('throws on a non-2xx status instead of returning the error body', async () => {
+    const fetch = mockFetch({
+      status: 500,
+      body: JSON.stringify({ message: 'boom' })
+    })
+    await expect(
+      sendToExchanger({
+        exchangeUrl: EXCHANGE_URL,
+        payload: {},
+        fetch
+      })
+    ).rejects.toThrow(/responded 500/)
+  })
+
+  it('wraps a malformed JSON body', async () => {
+    const fetch = mockFetch({ body: 'not json' })
+    await expect(
+      sendToExchanger({
+        exchangeUrl: EXCHANGE_URL,
+        payload: {},
+        fetch
+      })
+    ).rejects.toThrow(/malformed JSON/)
   })
 })

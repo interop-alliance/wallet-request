@@ -33,12 +33,6 @@ export const EPHEMERAL_EXCHANGE_POLL_INTERVAL_MS = 3000
 export const EPHEMERAL_EXCHANGE_TTL_MS = 10 * 60 * 1000
 
 /**
- * The exchange path the interaction URL adds, with the interaction-URL
- * version query the answering wallet's scanner expects.
- */
-export const EPHEMERAL_EXCHANGE_INTERACTION_PATH = '/protocols?iuv=1'
-
-/**
  * Raised when the exchange is no longer on the server (a `404`): it either
  * expired or was never created. The remedy is a fresh exchange, so a caller
  * renders its "expired" state. Dispatch on `err.name` rather than
@@ -96,7 +90,10 @@ function normalizedServerUrl({ serverUrl }: { serverUrl: string }): string {
  *
  * The exchange URL is read from the `Location` response header, falling back
  * to the body's `location` member -- deployments differ on which they set,
- * and either alone is enough.
+ * and either alone is enough. Either value is resolved against the request URL
+ * (a `Location` may be relative, per RFC 9110), and the interaction URL is
+ * built with the URL API so an exchange URL carrying a query string or a
+ * trailing slash still yields a well-formed link.
  *
  * @param options {object}
  * @param options.serverUrl {string}   the WAS server base URL
@@ -126,22 +123,31 @@ export async function createEphemeralExchange({
       `Could not create the ephemeral exchange (HTTP ${response.status}).`
     )
   }
-  let exchangeUrl = response.headers?.get('location') ?? ''
-  if (!exchangeUrl) {
+  let location = response.headers?.get('location') ?? ''
+  if (!location) {
     try {
       const body = (await response.json()) as { location?: string }
-      exchangeUrl = body?.location ?? ''
+      location = body?.location ?? ''
     } catch (err) {
       log.warn('Could not parse the created exchange body', { err })
     }
   }
-  if (!exchangeUrl) {
+  if (!location) {
     throw new Error('The created ephemeral exchange has no location.')
   }
-  return {
-    exchangeUrl,
-    interactionUrl: `${exchangeUrl}${EPHEMERAL_EXCHANGE_INTERACTION_PATH}`
+  let exchange: URL
+  try {
+    exchange = new URL(location, url)
+  } catch (err) {
+    throw new Error(
+      `The created ephemeral exchange has an invalid location "${location}".`,
+      { cause: err }
+    )
   }
+  const interaction = new URL(exchange.href)
+  interaction.pathname = `${exchange.pathname.replace(/\/+$/, '')}/protocols`
+  interaction.searchParams.set('iuv', '1')
+  return { exchangeUrl: exchange.href, interactionUrl: interaction.href }
 }
 
 /**
@@ -213,8 +219,8 @@ export async function pollEphemeralExchange({
   intervalMs?: number
   fetch?: FetchLike
 }): Promise<unknown> {
-  // One internal signal folds the caller's abort and the deadline together,
-  // so a single `signal` reaches fetch and the delay. The caller's reason is
+  // One internal signal combines the caller's abort and the deadline, so a
+  // single `signal` reaches fetch and the delay. The caller's reason is
   // forwarded verbatim; the deadline aborts with the timeout error.
   const controller = new AbortController()
   const onCallerAbort = () => controller.abort(signal?.reason)

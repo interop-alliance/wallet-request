@@ -35,7 +35,8 @@ import { typeArray } from '@interop/data-integrity-core/guards'
 import {
   exclusiveQueryOf,
   isZcapQuery,
-  parsedAbsoluteUrl
+  parsedAbsoluteUrl,
+  singleQueryOfType
 } from './queryPredicates.js'
 
 export { isZcapQuery }
@@ -199,13 +200,7 @@ export function isDIDAuthRequested({
 }: {
   queries: IVPRQuery[]
 }): boolean {
-  const didAuthRequests = queries.filter(
-    query => query.type === 'DIDAuthentication'
-  )
-  if (didAuthRequests.length > 1) {
-    throw new Error('More than one DIDAuthentication request found, exiting.')
-  }
-  return didAuthRequests.length === 1
+  return singleQueryOfType({ queries, typeName: 'DIDAuthentication' }) !== null
 }
 
 /**
@@ -279,8 +274,8 @@ export function zcapQueriesOf(queries: IVPRQuery[]): ICapabilityQueryDetail[] {
  * and returns its serialized form. The value must parse as an absolute URL,
  * must not carry a fragment, and its origin must equal the attested origin;
  * any violation throws (the query is malformed). All storage and comparison
- * downstream uses the returned serialization, so spellings differing only in
- * a default port, percent-encoding case, or dot-segments do not name distinct
+ * downstream uses the returned serialization, so forms differing only in a
+ * default port, percent-encoding case, or dot-segments do not name distinct
  * applications.
  *
  * The rule is the origin's, with no scheme constraint of its own: an `appUrl`
@@ -359,10 +354,10 @@ export function appConnectRequestOf({
   queries: IVPRQuery[]
   origin: string
 }): IAppConnectRequest | null {
-  const appConnectQuery = exclusiveQueryOf({
+  const appConnectQuery = exclusiveQueryOf<IAppConnectQuery>({
     queries,
     typeName: 'AppConnectQuery'
-  }) as unknown as IAppConnectQuery | null
+  })
   if (appConnectQuery === null) {
     return null
   }

@@ -149,6 +149,23 @@ describe('fetchInteractionProtocols', () => {
     ).rejects.toThrow('Interaction URL response missing "protocols" map.')
   })
 
+  it('throws when the response body is null or not JSON', async () => {
+    await expect(
+      fetchInteractionProtocols(URL_1, { fetch: jsonFetch(null) })
+    ).rejects.toThrow('Interaction URL response missing "protocols" map.')
+    const notJson = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => {
+        throw new SyntaxError('Unexpected token')
+      }
+    }) as unknown as FetchLike
+    await expect(
+      fetchInteractionProtocols(URL_1, { fetch: notJson })
+    ).rejects.toThrow('Interaction URL response is not JSON.')
+  })
+
   it('throws when the response is not ok', async () => {
     await expect(
       fetchInteractionProtocols(URL_1, {

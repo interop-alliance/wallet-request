@@ -19,7 +19,7 @@ import { log } from './log.js'
 import { appConnectRequestOf, classifyRequest, queriesOf } from './classify.js'
 import { composeVp } from './composeVp.js'
 import { negotiateCryptosuite } from './presentationSuite.js'
-import { hasAppConnectQuery } from './queryPredicates.js'
+import { exclusiveQueryTypeOf } from './queryPredicates.js'
 import type {
   IVerifiableCredential,
   IVPRDetails,
@@ -46,7 +46,7 @@ function hostOf(value: string): string | undefined {
 }
 
 /**
- * Domain-binding check (VCALM §3.4.3 advisement): a DID-Auth `domain` MUST match
+ * Domain-binding check (VCALM section 3.4.3 advisement): a DID-Auth `domain` MUST match
  * the channel the request arrived on, otherwise a dishonest verifier could relay
  * the challenge from another origin and replay the response.
  *
@@ -126,13 +126,26 @@ export async function processRequest({
     )
   }
 
+  // An exclusive query type stands alone in a request (`exclusiveQueryTypeOf`
+  // throws on a mixture). App Connect is the one this function has a processor
+  // for; any other (a `WalletOnboardingQuery`) is routed by the wallet to its
+  // own flow before it gets here, so reaching this point with one is a refusal,
+  // not an empty generic response.
+  const exclusiveType = exclusiveQueryTypeOf(queries)
+  if (exclusiveType !== undefined && exclusiveType !== 'AppConnectQuery') {
+    throw new Error(
+      `A ${exclusiveType} request has no processor in processRequest; ` +
+        'the wallet handles it in its own flow.'
+    )
+  }
+
   // An App Connect request takes its own single-round branch, handled by the
   // injected processor. The requesting origin is what the app key is bound to
   // (and what the query's `appUrl` is validated against), so it is required;
   // the query itself is validated here (`appConnectRequestOf` throws on a
   // malformed `app` block), so the processor only ever sees a well-formed
   // request whose `appUrl` is already in serialized form.
-  if (hasAppConnectQuery(queries)) {
+  if (exclusiveType === 'AppConnectQuery') {
     if (!processors?.processAppConnect) {
       throw new Error(
         'An App Connect request was received but no processAppConnect ' +

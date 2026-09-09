@@ -96,6 +96,36 @@ describe('classifyWalletInput', () => {
     ).toBe('deep-link')
   })
 
+  it('anchors a bare-origin link prefix at a URL delimiter', () => {
+    const deepLinkSchemes = ['https://wallet.example.com']
+    expect(
+      classifyWalletInput('https://wallet.example.com/x', { deepLinkSchemes })
+        .kind
+    ).toBe('deep-link')
+    expect(
+      classifyWalletInput('https://wallet.example.com?x=1', {
+        deepLinkSchemes
+      }).kind
+    ).toBe('deep-link')
+    expect(
+      classifyWalletInput('https://wallet.example.com.evil.org/x', {
+        deepLinkSchemes
+      }).kind
+    ).toBe('credentials')
+  })
+
+  it('does not throw on a request parameter that is a JSON primitive', () => {
+    expect(classifyWalletInput('https://a.example/?request=5').kind).toBe(
+      'credentials'
+    )
+    expect(classifyWalletInput('https://a.example/?request=true').kind).toBe(
+      'credentials'
+    )
+    expect(classifyWalletInput('https://a.example/?request=abc').kind).toBe(
+      'credentials'
+    )
+  })
+
   it('needs registered schemes for the deep-link branches', () => {
     const text = 'dccrequest://request?vc_request_url=x&issuer=y'
     expect(classifyWalletInput(text).kind).toBe('credentials')

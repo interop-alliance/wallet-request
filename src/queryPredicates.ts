@@ -12,7 +12,7 @@ import type { IVPRQuery, IZcapQuery } from './types.js'
 
 /**
  * Whether a query is a standalone capability query, under either type string:
- * `AuthorizationCapabilityQuery` (the canonical VCALM spelling) or the legacy
+ * `AuthorizationCapabilityQuery` (the canonical VCALM name) or the legacy
  * `ZcapQuery`.
  *
  * The one reader of that alias pair. Both exclusivity checks and both
@@ -26,6 +26,31 @@ export function isZcapQuery(query: IVPRQuery): query is IZcapQuery {
   return (
     query.type === 'AuthorizationCapabilityQuery' || query.type === 'ZcapQuery'
   )
+}
+
+/**
+ * The queries of a set carrying the given `type` string, when the request may
+ * carry at most one: returns `null` for none, the one query for exactly one,
+ * and throws for more. The one home of the at-most-one rule, shared by the
+ * `DIDAuthentication` check and the exclusive-type check.
+ *
+ * @param options {object}
+ * @param options.queries {IVPRQuery[]}
+ * @param options.typeName {string}
+ * @returns {IVPRQuery | null}
+ */
+export function singleQueryOfType({
+  queries,
+  typeName
+}: {
+  queries: IVPRQuery[]
+  typeName: string
+}): IVPRQuery | null {
+  const matches = queries.filter(query => isQueryOfType({ query, typeName }))
+  if (matches.length > 1) {
+    throw new Error(`More than one ${typeName} found, exiting.`)
+  }
+  return matches[0] ?? null
 }
 
 /**
@@ -49,8 +74,7 @@ export const EXCLUSIVE_QUERY_TYPES = [
 export type ExclusiveQueryType = (typeof EXCLUSIVE_QUERY_TYPES)[number]
 
 /**
- * Whether a query carries the given `type` string. The one comparison every
- * type test in this file runs through: `AppConnectQuery` and
+ * Whether a query carries the given `type` string. `AppConnectQuery` and
  * `WalletOnboardingQuery` extend the spec query union rather than being part
  * of it, so they are matched by `type` string and upcast rather than narrowed
  * via a type predicate.
@@ -71,43 +95,6 @@ function isQueryOfType({
 }
 
 /**
- * Whether a query is an `AppConnectQuery`. Callers filtering on this still
- * cast the result to `IAppConnectQuery[]` (see {@link isQueryOfType}).
- *
- * @param query {IVPRQuery}
- * @returns {boolean}
- */
-export function isAppConnectQuery(query: IVPRQuery): boolean {
-  return isQueryOfType({ query, typeName: 'AppConnectQuery' })
-}
-
-/**
- * Whether a query set carries an `AppConnectQuery` at all: the gate
- * `processRequest` takes its App Connect branch on, and the presence half of
- * `appConnectRequestOf`'s extraction. The gate cannot simply run the
- * extractor, since the extractor needs the requesting origin whose absence
- * the gate must report, so the two share this predicate instead of each
- * filtering on the type string.
- *
- * @param queries {IVPRQuery[]}
- * @returns {boolean}
- */
-export function hasAppConnectQuery(queries: IVPRQuery[]): boolean {
-  return queries.some(isAppConnectQuery)
-}
-
-/**
- * Whether a query is a `WalletOnboardingQuery`. Matched the same way as
- * {@link isAppConnectQuery}.
- *
- * @param query {IVPRQuery}
- * @returns {boolean}
- */
-export function isWalletOnboardingQuery(query: IVPRQuery): boolean {
-  return isQueryOfType({ query, typeName: 'WalletOnboardingQuery' })
-}
-
-/**
  * The indefinite article a type name takes in a refusal message.
  *
  * @param typeName {string}
@@ -124,26 +111,25 @@ function articleFor(typeName: string): string {
  * mutually exclusive type sits beside it: `QueryByExample`, a standalone
  * capability query, or any other exclusive type. The exclusion list is
  * derived from the shared set rather than written per caller, so no type can
- * be excluded from one direction only.
+ * be excluded from one direction only. The type parameter names the extension
+ * query shape the caller reads (see {@link isQueryOfType} for why it is an
+ * upcast rather than a narrowing).
  *
  * @param options {object}
  * @param options.queries {IVPRQuery[]}   the request's query set
  * @param options.typeName {ExclusiveQueryType}   the singleton's type
- * @returns {IVPRQuery | null}
+ * @returns {Query | null}
  */
-export function exclusiveQueryOf({
+export function exclusiveQueryOf<Query = IVPRQuery>({
   queries,
   typeName
 }: {
   queries: IVPRQuery[]
   typeName: ExclusiveQueryType
-}): IVPRQuery | null {
-  const matches = queries.filter(query => isQueryOfType({ query, typeName }))
-  if (matches.length === 0) {
+}): Query | null {
+  const match = singleQueryOfType({ queries, typeName })
+  if (match === null) {
     return null
-  }
-  if (matches.length > 1) {
-    throw new Error(`More than one ${typeName} found, exiting.`)
   }
   const otherTypes = EXCLUSIVE_QUERY_TYPES.filter(other => other !== typeName)
   const isExcluded = (query: IVPRQuery): boolean =>
@@ -159,7 +145,27 @@ export function exclusiveQueryOf({
         `standalone capability queries, or ${others.join(', or ')}.`
     )
   }
-  return matches[0]!
+  return match as unknown as Query
+}
+
+/**
+ * Which of the {@link EXCLUSIVE_QUERY_TYPES} a query set carries, or
+ * `undefined` when none. Runs {@link exclusiveQueryOf} for every member, so a
+ * set that mixes an exclusive type with `QueryByExample`, a standalone
+ * capability query, or another exclusive type throws here whichever type is
+ * asked about. `processRequest` dispatches on the result: the one type it has
+ * a processor for takes its own branch, and any other is refused rather than
+ * answered on the generic half of the request.
+ *
+ * @param queries {IVPRQuery[]}
+ * @returns {ExclusiveQueryType | undefined}
+ */
+export function exclusiveQueryTypeOf(
+  queries: IVPRQuery[]
+): ExclusiveQueryType | undefined {
+  return EXCLUSIVE_QUERY_TYPES.find(
+    typeName => exclusiveQueryOf({ queries, typeName }) !== null
+  )
 }
 
 /**

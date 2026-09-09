@@ -15,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { composeCapabilityRequest } from '../../src/capabilityRequest.js'
 import {
   createEphemeralExchange,
-  EPHEMERAL_EXCHANGE_INTERACTION_PATH,
   EPHEMERAL_EXCHANGE_POLL_INTERVAL_MS,
   EPHEMERAL_EXCHANGE_TTL_MS,
   EphemeralExchangeGoneError,
@@ -83,10 +82,48 @@ describe('createEphemeralExchange', () => {
       }
     )
     expect(created.exchangeUrl).toBe(EXCHANGE_URL)
-    expect(created.interactionUrl).toBe(
-      `${EXCHANGE_URL}${EPHEMERAL_EXCHANGE_INTERACTION_PATH}`
+    expect(created.interactionUrl).toBe(`${EXCHANGE_URL}/protocols?iuv=1`)
+  })
+
+  it('resolves a relative Location against the request URL', async () => {
+    const fetchMock = vi.fn(async () =>
+      fakeResponse({
+        status: 201,
+        headers: { location: '/workflows/ephemeral/exchanges/abc123' }
+      })
     )
-    expect(EPHEMERAL_EXCHANGE_INTERACTION_PATH).toBe('/protocols?iuv=1')
+
+    const created = await createEphemeralExchange({
+      serverUrl: SERVER_URL,
+      request: REQUEST,
+      fetch: fetchMock
+    })
+
+    expect(created.exchangeUrl).toBe(
+      'https://was.example/workflows/ephemeral/exchanges/abc123'
+    )
+    expect(created.interactionUrl).toBe(
+      'https://was.example/workflows/ephemeral/exchanges/abc123/protocols?iuv=1'
+    )
+  })
+
+  it('builds the interaction URL from an exchange URL with a trailing slash or query', async () => {
+    const fetchMock = vi.fn(async () =>
+      fakeResponse({
+        status: 201,
+        headers: { location: `${EXCHANGE_URL}/?ticket=t1` }
+      })
+    )
+
+    const created = await createEphemeralExchange({
+      serverUrl: SERVER_URL,
+      request: REQUEST,
+      fetch: fetchMock
+    })
+
+    expect(created.interactionUrl).toBe(
+      `${EXCHANGE_URL}/protocols?ticket=t1&iuv=1`
+    )
   })
 
   it('falls back to the body location when no header is set', async () => {

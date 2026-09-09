@@ -1,5 +1,48 @@
 # @interop/wallet-request Changelog
 
+## 0.2.0 - TBD
+
+### Fixed
+
+- `sendToExchanger` now shares `postToExchange`: a `404` throws
+  `EphemeralExchangeGoneError`, any other non-2xx status throws instead of
+  returning the error body as the peer's reply, malformed JSON is wrapped, and
+  an empty body yields `{}` (was `null`).
+- `classifyWalletInput` no longer throws when a URL's `request` parameter is a
+  JSON primitive; a non-JSON `request` parameter is logged at debug level
+  without the raw value.
+- `isDIDAuthOnlyRequest` returns `false` for a non-object
+  `verifiablePresentationRequest` instead of throwing.
+- `processRequest` refuses a `WalletOnboardingQuery` (and any exclusive query
+  type it has no processor for) instead of returning `{}` or answering the
+  generic half of a mixed request. New `exclusiveQueryTypeOf` in
+  `queryPredicates`.
+- `createEphemeralExchange` resolves a relative `Location` against the request
+  URL and builds the interaction URL with the URL API.
+- `fetchInteractionProtocols` reports a non-JSON or `null` body as an error
+  instead of throwing a raw `TypeError` / `SyntaxError`.
+- `appKeyCandidates` no longer treats a credential with a non-string `appUrl`
+  claim as a legacy (pre-`appUrl`) candidate.
+
+### Changed
+
+- **Breaking:** `deepLinkSchemes` prefixes are matched at a URL delimiter, so a
+  bare-origin prefix no longer matches a lookalike host.
+- `handleWalletInput` warns when a `wasLink` / `connectCode` handler is wired
+  without its recognizer.
+- `exclusiveQueryOf` takes a type parameter for the extension query shape it
+  returns; the at-most-one-query rule lives in `singleQueryOfType`.
+- ARCHITECTURE.md documents the signing path's document loader as a network seam
+  outside the injected `FetchLike`.
+
+### Removed
+
+- **Breaking:** the deprecated `composeVP` alias, the `IVpRequest` / `IVpOffer`
+  / `IVprDetails` / `IVprQuery` / `IDidAuthenticationQuery` type aliases,
+  `EPHEMERAL_EXCHANGE_INTERACTION_PATH`, `hasAppConnectQuery`,
+  `isAppConnectQuery`, `isWalletOnboardingQuery`, and the empty
+  `declarations.d.ts`.
+
 ## 0.1.0 - 2026-09-09
 
 ### Added
