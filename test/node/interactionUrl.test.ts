@@ -174,7 +174,7 @@ describe('fetchInteractionProtocols', () => {
           { ok: false, status: 400, statusText: 'Bad Request' }
         )
       })
-    ).rejects.toThrow('Interaction URL fetch failed: 400 Bad Request')
+    ).rejects.toThrow(/responded 400 Bad Request/)
   })
 
   it('throws EphemeralExchangeGoneError on a 404', async () => {

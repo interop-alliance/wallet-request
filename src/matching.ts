@@ -23,6 +23,7 @@ import type { IVerifiableCredential } from './types.js'
 import type { ICredentialQuery, IQueryByExample } from './types.js'
 import { credentialQueriesOf } from './classify.js'
 import { issuerId, typeArray } from '@interop/data-integrity-core/guards'
+import { toArray } from './queryPredicates.js'
 
 // The loose-field normalizers are owned by data-integrity-core; re-export them
 // here so a matching consumer imports one module.
@@ -84,7 +85,8 @@ function matchesExampleScope(
       // Array query values require that the matching credential contains at
       // least every value specified. This assumes each element is a literal.
       // The credential side may hold the compacted single-value form.
-      const scopeValues = valueList(credentialScope)
+      // The field may hold the array or the compacted single value.
+      const scopeValues = toArray<unknown>(credentialScope)
       if (scopeValues.length < vprExampleValue.length) {
         return false
       }
@@ -115,24 +117,6 @@ function matchesExampleScope(
     }
   }
   return matches.every(match => match)
-}
-
-/**
- * Normalizes a credential field value to the array form, so an example's array
- * value can be compared against a field holding either the array or the
- * compacted single value. An absent field yields `[]`.
- *
- * @param value {unknown}
- * @returns {unknown[]}
- */
-function valueList(value: unknown): unknown[] {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (value === undefined) {
-    return []
-  }
-  return [value]
 }
 
 /**

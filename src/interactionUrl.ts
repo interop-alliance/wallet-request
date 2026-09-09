@@ -12,7 +12,7 @@
  * transport injected ({@link FetchLike}, default `globalThis.fetch`).
  */
 import { log } from './log.js'
-import { EphemeralExchangeGoneError } from './ephemeralExchange.js'
+import { assertExchangeResponseOk } from './ephemeralExchange.js'
 import type { FetchLike } from './types.js'
 
 const INTERACTION_SCHEME_PREFIX = 'interaction:'
@@ -97,16 +97,11 @@ export async function fetchInteractionProtocols(
     headers: { Accept: 'application/json' }
   })
 
-  if (response.status === 404) {
-    throw new EphemeralExchangeGoneError(
-      `The interaction URL ${interactionUrl} is no longer available.`
-    )
-  }
-  if (!response.ok) {
-    throw new Error(
-      `Interaction URL fetch failed: ${response.status} ${response.statusText}`
-    )
-  }
+  assertExchangeResponseOk({
+    response,
+    label: 'interaction URL',
+    url: interactionUrl
+  })
 
   let body: unknown
   try {

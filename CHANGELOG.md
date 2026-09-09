@@ -14,8 +14,9 @@
 - `isDIDAuthOnlyRequest` returns `false` for a non-object
   `verifiablePresentationRequest` instead of throwing.
 - `processRequest` refuses a `WalletOnboardingQuery` (and any exclusive query
-  type it has no processor for) instead of returning `{}` or answering the
-  generic half of a mixed request. New `exclusiveQueryTypeOf` in
+  type it has no processor for) with `ExclusiveQueryUnsupportedError` (with a
+  `queryType` property; dispatch on `err.name`) instead of returning `{}` or
+  answering the generic half of a mixed request. New `exclusiveQueryTypeOf` in
   `queryPredicates`.
 - `createEphemeralExchange` resolves a relative `Location` against the request
   URL and builds the interaction URL with the URL API.
@@ -35,6 +36,16 @@
   returns; the at-most-one-query rule lives in `singleQueryOfType`.
 - ARCHITECTURE.md documents the signing path's document loader as a network seam
   outside the injected `FetchLike`.
+- New `toArray` in `queryPredicates` is the one single-or-array normalizer
+  behind `queriesOf`, `credentialsOf`, `credentialQueriesOf`, the zcap and App
+  Connect `capabilityQuery` readers, the matchers, and the VP `@context`.
+- New `assertExchangeResponseOk` in `ephemeralExchange` is the one 404 / non-2xx
+  status rule shared by `postToExchange` and `fetchInteractionProtocols`; the
+  latter's non-2xx message now reads
+  `The interaction URL at <url> responded <status> <text>.`
+- New `walletApiMessageObjectOf` returns the parsed wallet API message object;
+  `isWalletApiMessage` wraps it, and `classifyWalletInput` parses raw JSON input
+  once instead of twice.
 
 ### Removed
 

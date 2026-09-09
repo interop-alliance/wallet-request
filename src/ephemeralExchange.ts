@@ -52,6 +52,41 @@ export class EphemeralExchangeGoneError extends Error {
 }
 
 /**
+ * The one home of the exchange response-status rule shared by the exchange
+ * client and the interaction URL resolver: a 404 means the ephemeral exchange
+ * is gone (its own error, so callers can dispatch on it), any other non-2xx
+ * status is a plain failure.
+ *
+ * @param options {object}
+ * @param options.response {Response}
+ * @param options.label {string} - What the URL names in the error message
+ *   (`exchange`, `interaction URL`).
+ * @param options.url {string}
+ * @returns {void}
+ */
+export function assertExchangeResponseOk({
+  response,
+  label,
+  url
+}: {
+  response: Response
+  label: string
+  url: string
+}): void {
+  if (response.status === 404) {
+    throw new EphemeralExchangeGoneError(
+      `The ${label} at ${url} is no longer available.`
+    )
+  }
+  if (!response.ok) {
+    throw new Error(
+      `The ${label} at ${url} responded ${response.status} ` +
+        `${response.statusText}.`
+    )
+  }
+}
+
+/**
  * Raised when the poll's own `timeoutMs` elapses before the exchange
  * completes. Distinct from {@link EphemeralExchangeGoneError}: the exchange
  * may still be on the server and approvable, the requester just stopped

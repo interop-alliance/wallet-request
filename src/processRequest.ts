@@ -20,6 +20,7 @@ import { appConnectRequestOf, classifyRequest, queriesOf } from './classify.js'
 import { composeVp } from './composeVp.js'
 import { negotiateCryptosuite } from './presentationSuite.js'
 import { exclusiveQueryTypeOf } from './queryPredicates.js'
+import type { ExclusiveQueryType } from './queryPredicates.js'
 import type {
   IVerifiableCredential,
   IVPRDetails,
@@ -69,6 +70,27 @@ export function domainMatchesOrigin({
   const originHost = hostOf(origin)
   const domainHost = hostOf(domain)
   return !!originHost && originHost === domainHost
+}
+
+/**
+ * Raised by {@link processRequest} when the request carries an exclusive query
+ * type it has no processor for (today the `WalletOnboardingQuery`, which a
+ * wallet routes to its own flow before calling in). The `queryType` rides
+ * along so a caller can dispatch to that flow. Dispatch on `err.name` rather
+ * than `instanceof`, as with the package's other errors: the caller may hold a
+ * different copy of this package, which makes the name the stable contract.
+ */
+export class ExclusiveQueryUnsupportedError extends Error {
+  readonly queryType: ExclusiveQueryType
+
+  constructor({ queryType }: { queryType: ExclusiveQueryType }) {
+    super(
+      `A ${queryType} request has no processor in processRequest; ` +
+        'the wallet handles it in its own flow.'
+    )
+    this.name = 'ExclusiveQueryUnsupportedError'
+    this.queryType = queryType
+  }
 }
 
 /**
@@ -133,10 +155,7 @@ export async function processRequest({
   // not an empty generic response.
   const exclusiveType = exclusiveQueryTypeOf(queries)
   if (exclusiveType !== undefined && exclusiveType !== 'AppConnectQuery') {
-    throw new Error(
-      `A ${exclusiveType} request has no processor in processRequest; ` +
-        'the wallet handles it in its own flow.'
-    )
+    throw new ExclusiveQueryUnsupportedError({ queryType: exclusiveType })
   }
 
   // An App Connect request takes its own single-round branch, handled by the

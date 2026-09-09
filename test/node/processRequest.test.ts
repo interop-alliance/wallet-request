@@ -114,7 +114,10 @@ describe('processRequest', () => {
     })
     await expect(
       processRequest({ request: { query: onboarding }, presentationSigner })
-    ).rejects.toThrow(/WalletOnboardingQuery request has no processor/)
+    ).rejects.toMatchObject({
+      name: 'ExclusiveQueryUnsupportedError',
+      queryType: 'WalletOnboardingQuery'
+    })
     await expect(
       processRequest({
         request: { query: [onboarding, queryOfType('QueryByExample')] },

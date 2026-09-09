@@ -11,6 +11,21 @@
 import type { IVPRQuery, IZcapQuery } from './types.js'
 
 /**
+ * Normalizes a value that a wire format allows as either a single entry or an
+ * array of entries (a VPR `query`, a `credentialQuery`, a `capabilityQuery`,
+ * a JSON-LD `@context`) to an array. An absent value yields `[]`.
+ *
+ * @param value {T | T[] | undefined}
+ * @returns {T[]}
+ */
+export function toArray<T>(value: T | T[] | undefined): T[] {
+  if (value === undefined) {
+    return []
+  }
+  return Array.isArray(value) ? value : [value]
+}
+
+/**
  * Whether a query is a standalone capability query, under either type string:
  * `AuthorizationCapabilityQuery` (the canonical VCALM name) or the legacy
  * `ZcapQuery`.

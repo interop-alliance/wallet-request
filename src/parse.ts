@@ -26,28 +26,40 @@ import { isDIDAuthRequested, isZcapQuery, queriesOf } from './classify.js'
 export { isDIDAuthRequested as isDidAuthRequested } from './classify.js'
 
 /**
- * Whether a JSON string is a recognized wallet API message: an exchange
- * invitation, a presentation request, a presentation offer, or an issuance
- * request. Malformed JSON is not a message.
+ * The parsed object behind a JSON string when it is a recognized wallet API
+ * message (an exchange invitation, a presentation request, a presentation
+ * offer, or an issuance request), or `undefined` when it is not. Malformed
+ * JSON is not a message. Parses once, so a caller that goes on to
+ * `parseWalletApiMessage` the object does not parse the text again.
  *
  * @param text {string}
- * @returns {boolean}
+ * @returns {object | undefined}
  */
-export function isWalletApiMessage(text: string): boolean {
-  let messageObject
+export function walletApiMessageObjectOf(text: string): object | undefined {
+  let messageObject: unknown
   try {
     messageObject = JSON.parse(text)
   } catch {
-    return false
+    return undefined
   }
-  return (
+  const isMessage =
     !!messageObject &&
     typeof messageObject === 'object' &&
     ('protocols' in messageObject ||
       'verifiablePresentationRequest' in messageObject ||
       'verifiablePresentation' in messageObject ||
       'issueRequest' in messageObject)
-  )
+  return isMessage ? (messageObject as object) : undefined
+}
+
+/**
+ * Whether a JSON string is a recognized wallet API message.
+ *
+ * @param text {string}
+ * @returns {boolean}
+ */
+export function isWalletApiMessage(text: string): boolean {
+  return walletApiMessageObjectOf(text) !== undefined
 }
 
 /**

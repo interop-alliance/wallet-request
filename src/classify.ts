@@ -36,7 +36,8 @@ import {
   exclusiveQueryOf,
   isZcapQuery,
   parsedAbsoluteUrl,
-  singleQueryOfType
+  singleQueryOfType,
+  toArray
 } from './queryPredicates.js'
 
 export { isZcapQuery }
@@ -72,9 +73,7 @@ export function presentationVersionFor(
   credentials: IVerifiableCredential[]
 ): number {
   const isV2 = credentials.some(credential => {
-    const contexts = credential?.['@context']
-    const contextArray = Array.isArray(contexts) ? contexts : [contexts]
-    return contextArray.includes(VC_2_CONTEXT_URL)
+    return toArray(credential?.['@context']).includes(VC_2_CONTEXT_URL)
   })
   return isV2 ? 2.0 : 1.0
 }
@@ -144,13 +143,7 @@ function offeredPresentation({
 export function credentialsOf(
   presentation: IVerifiablePresentation
 ): IVerifiableCredential[] {
-  const { verifiableCredential } = presentation
-  if (!verifiableCredential) {
-    return []
-  }
-  return Array.isArray(verifiableCredential)
-    ? verifiableCredential
-    : [verifiableCredential]
+  return toArray(presentation.verifiableCredential)
 }
 
 /**
@@ -214,9 +207,7 @@ export function isDIDAuthRequested({
  * @returns {IVPRQuery[]}
  */
 export function queriesOf(request: IVPRDetails): IVPRQuery[] {
-  const { query } = request
-  const queries = Array.isArray(query) ? query : [query]
-  return queries.filter(
+  return toArray<unknown>(request.query).filter(
     (entry): entry is IVPRQuery =>
       !!entry &&
       typeof entry === 'object' &&
@@ -234,11 +225,7 @@ export function queriesOf(request: IVPRDetails): IVPRQuery[] {
 export function credentialQueriesOf(
   query: IQueryByExample
 ): ICredentialQuery[] {
-  const { credentialQuery } = query
-  if (!credentialQuery) {
-    return []
-  }
-  return Array.isArray(credentialQuery) ? credentialQuery : [credentialQuery]
+  return toArray(query.credentialQuery)
 }
 
 /**
@@ -255,9 +242,12 @@ export function credentialQueriesOf(
  */
 export function zcapQueriesOf(queries: IVPRQuery[]): ICapabilityQueryDetail[] {
   return queries.filter(isZcapQuery).flatMap(({ type, capabilityQuery }) => {
-    const detailEntries = Array.isArray(capabilityQuery)
-      ? capabilityQuery
-      : [capabilityQuery]
+    const detailEntries = toArray(capabilityQuery)
+    if (capabilityQuery === undefined) {
+      throw new Error(
+        `A "${type}" query is missing its capabilityQuery detail.`
+      )
+    }
     for (const detail of detailEntries) {
       if (!detail || typeof detail !== 'object') {
         throw new Error(
@@ -366,27 +356,21 @@ export function appConnectRequestOf({
     throw new Error('An AppConnectQuery is missing its app name / appUrl.')
   }
   const appUrl = serializedAppUrl({ appUrl: app.appUrl, origin })
-  const rawQueries =
-    capabilityQuery === undefined
-      ? []
-      : Array.isArray(capabilityQuery)
-        ? capabilityQuery
-        : [capabilityQuery]
-  const capabilityQueries: IAppConnectCapabilityQuery[] = rawQueries.map(
-    detail => {
-      if (!detail || typeof detail !== 'object') {
-        throw new Error(
-          'An AppConnectQuery carries a malformed capabilityQuery entry.'
-        )
-      }
-      const { referenceId, allowedAction, invocationTarget } = detail
-      return {
-        ...(referenceId !== undefined && { referenceId }),
-        ...(allowedAction !== undefined && { allowedAction }),
-        invocationTarget
-      }
+  const capabilityQueries: IAppConnectCapabilityQuery[] = toArray(
+    capabilityQuery
+  ).map(detail => {
+    if (!detail || typeof detail !== 'object') {
+      throw new Error(
+        'An AppConnectQuery carries a malformed capabilityQuery entry.'
+      )
     }
-  )
+    const { referenceId, allowedAction, invocationTarget } = detail
+    return {
+      ...(referenceId !== undefined && { referenceId }),
+      ...(allowedAction !== undefined && { allowedAction }),
+      invocationTarget
+    }
+  })
   return { app: { name: app.name, appUrl }, capabilityQueries }
 }
 

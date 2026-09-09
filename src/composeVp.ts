@@ -22,6 +22,7 @@ import { contexts as byoeContexts, CONTEXT_URL_V1 } from 'byoe-context'
 import type { IDocumentLoader } from '@interop/data-integrity-core'
 import { presentationSuiteFor } from './presentationSuite.js'
 import { presentationVersionFor } from './classify.js'
+import { toArray } from './queryPredicates.js'
 import type {
   IVerifiablePresentation,
   IVerifiableCredential,
@@ -70,8 +71,9 @@ type PresentationWithZcaps = IVerifiablePresentation & {
 function contextEntries(
   presentation: PresentationWithZcaps
 ): Array<string | object> {
-  const base = presentation['@context'] as string | Array<string | object>
-  return Array.isArray(base) ? [...base] : [base]
+  return [
+    ...toArray(presentation['@context'] as string | Array<string | object>)
+  ]
 }
 
 /**

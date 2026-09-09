@@ -20,8 +20,7 @@
  *   `@interop/wallet-core`'s `enrollment` subpath, beside the connect code it
  *   carries).
  * - `appKey` is the App Connect app-key credential module: the wire constants,
- *   the matching / minting / legacy re-issue paths, and the store-time
- *   refusal policy.
+ *   the matching and minting paths, and the store-time refusal policy.
  * - `presentationSuite` negotiates the response cryptosuite; `composeVp` builds
  *   the (optionally signed, optionally grant-embedding) response VP.
  * - `exchangeClient` is the fetch-injectable VC-API exchange client;

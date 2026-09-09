@@ -54,7 +54,7 @@
 import { isInteractionUrl } from './interactionUrl.js'
 import { log } from './log.js'
 import {
-  isWalletApiMessage,
+  walletApiMessageObjectOf,
   parseWalletApiMessage,
   parseWalletApiUrl
 } from './parse.js'
@@ -192,14 +192,11 @@ export function classifyWalletInput(
 
   // A link on an unregistered scheme can still carry a wallet API message in
   // its `request` parameter (a site's own QR code).
-  const carried = parseWalletApiUrl({ url: trimmed })
-  const message = carried
-    ? parseWalletApiMessage({ messageObject: carried })
-    : isWalletApiMessage(trimmed)
-      ? parseWalletApiMessage({
-          messageObject: JSON.parse(trimmed) as object
-        })
-      : undefined
+  const messageObject =
+    parseWalletApiUrl({ url: trimmed }) ?? walletApiMessageObjectOf(trimmed)
+  const message = messageObject
+    ? parseWalletApiMessage({ messageObject })
+    : undefined
   if (message) {
     return { kind: 'wallet-api-message', text: trimmed, message }
   }

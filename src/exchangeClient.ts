@@ -21,7 +21,7 @@
  *
  * @see https://w3c-ccg.github.io/vc-api/#exchange-examples
  */
-import { EphemeralExchangeGoneError } from './ephemeralExchange.js'
+import { assertExchangeResponseOk } from './ephemeralExchange.js'
 import type {
   CHAPIProtocols,
   FetchLike,
@@ -88,17 +88,7 @@ async function postToExchange({
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify(body)
   })
-  if (response.status === 404) {
-    throw new EphemeralExchangeGoneError(
-      `The exchange at ${url} is no longer available.`
-    )
-  }
-  if (!response.ok) {
-    throw new Error(
-      `The exchange at ${url} responded ${response.status} ` +
-        `${response.statusText}.`
-    )
-  }
+  assertExchangeResponseOk({ response, label: 'exchange', url })
   const text = await response.text()
   if (!text) {
     return {}

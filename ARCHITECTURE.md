@@ -47,12 +47,13 @@ layer 1:                     queryPredicates  (types)
 layer 2:                     classify         (types, queryPredicates)
 layer 3:                     parse            (log, classify, types)
                              presentationSuite (classify, types)
-                             matching         (types, classify)
+                             matching         (types, classify,
+                                                queryPredicates)
                              capabilityRequest (classify, types)
                              onboarding       (queryPredicates, types)
                              ephemeralExchange (log, types)
 layer 4:                     composeVp        (presentationSuite, classify,
-                                                types)
+                                                queryPredicates, types)
                              exchangeClient   (ephemeralExchange, types)
                              interactionUrl   (log, ephemeralExchange, types)
 layer 5:                     appKey           (composeVp, types)
@@ -167,8 +168,9 @@ which wallet is asking.
    side too. `queryPredicates.ts`'s exclusive-query-type set is the one place
    that mutual exclusion is defined, and `processRequest` reads it through
    `exclusiveQueryTypeOf`: an exclusive type it has no processor for (today the
-   `WalletOnboardingQuery`, which a wallet routes to its own flow) is refused,
-   not answered as an empty generic response.
+   `WalletOnboardingQuery`, which a wallet routes to its own flow) is refused
+   with `ExclusiveQueryUnsupportedError` (carrying the `queryType`; dispatch on
+   `err.name`), not answered as an empty generic response.
 6. **Grants go inside the VP before signing.** `composeVp.ts` embeds grants in
    the presentation before it is signed, so the DIDAuth proof covers them.
 7. **App keys are wallet-minted, not imported.** `appKey.ts`'s store-time

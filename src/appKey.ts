@@ -488,31 +488,9 @@ function appKeySeedBytes(
 }
 
 /**
- * A raw `credentialSubject` claim, or undefined when the subject is not an
- * object or the claim is absent.
- *
- * @param options {object}
- * @param options.credential {IVerifiableCredential}
- * @param options.field {string}
- * @returns {unknown}
- */
-function subjectField({
-  credential,
-  field
-}: {
-  credential: IVerifiableCredential
-  field: string
-}): unknown {
-  const subject = credential.credentialSubject as
-    | Record<string, unknown>
-    | undefined
-  return subject && typeof subject === 'object' ? subject[field] : undefined
-}
-
-/**
- * A `credentialSubject` claim narrowed to a string, or undefined when it is
- * absent or not a string. The one reader behind the `seed`, `origin`, and
- * `appUrl` accessors.
+ * A `credentialSubject` claim narrowed to a string, or undefined when the
+ * subject is not an object or the claim is absent or not a string. The one
+ * reader behind the `seed`, `origin`, and `appUrl` accessors.
  *
  * @param options {object}
  * @param options.credential {IVerifiableCredential}
@@ -526,7 +504,11 @@ function subjectStringField({
   credential: IVerifiableCredential
   field: string
 }): string | undefined {
-  const value = subjectField({ credential, field })
+  const subject = credential.credentialSubject as
+    | Record<string, unknown>
+    | undefined
+  const value =
+    subject && typeof subject === 'object' ? subject[field] : undefined
   return typeof value === 'string' ? value : undefined
 }
 
