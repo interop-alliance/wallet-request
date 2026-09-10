@@ -1,5 +1,11 @@
 # @interop/wallet-request Changelog
 
+## 0.3.1 - TBD
+
+### Changed
+
+- Update to latest ed25519 key dep.
+
 ## 0.3.0 - 2026-09-09
 
 ### Changed
