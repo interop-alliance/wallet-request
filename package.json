@@ -1,7 +1,7 @@
 {
   "name": "@interop/wallet-request",
   "description": "Wallet-request and exchange protocol handling for Interop wallet apps: input classification, VPR parsing, QueryByExample matching, cryptosuite negotiation, VP composition, the App Connect app-key credential, and the VC-API / ephemeral-exchange clients.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
