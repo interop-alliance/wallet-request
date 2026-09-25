@@ -1,5 +1,11 @@
 # @interop/wallet-request Changelog
 
+## 0.3.2 - TBD
+
+### Changed
+
+- Update to latest di core 8.8.0.
+
 ## 0.3.1 - 2026-09-10
 
 ### Changed
