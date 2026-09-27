@@ -1,5 +1,14 @@
 # @interop/wallet-request Changelog
 
+## 0.4.0 - TBD
+
+### Changed
+
+- **BREAKING**: `serializedAppUrl` (and so `appConnectRequestOf`) refuses an App
+  Connect `appUrl` carrying a query, including a bare trailing `?`, per the App
+  Connect spec. Such a URL could not be stamped as a collection's
+  `generator.url`.
+
 ## 0.3.2 - 2026-09-25
 
 ### Changed

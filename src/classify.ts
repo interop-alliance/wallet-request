@@ -262,11 +262,11 @@ export function zcapQueriesOf(queries: IVPRQuery[]): ICapabilityQueryDetail[] {
 /**
  * Validates an App Connect `app.appUrl` against the attested requesting origin
  * and returns its serialized form. The value must parse as an absolute URL,
- * must not carry a fragment, and its origin must equal the attested origin;
- * any violation throws (the query is malformed). All storage and comparison
- * downstream uses the returned serialization, so forms differing only in a
- * default port, percent-encoding case, or dot-segments do not name distinct
- * applications.
+ * must carry neither a query nor a fragment, and its origin must equal the
+ * attested origin; any violation throws (the query is malformed). All storage
+ * and comparison downstream uses the returned serialization, so forms
+ * differing only in a default port, percent-encoding case, or dot-segments do
+ * not name distinct applications.
  *
  * The rule is the origin's, with no scheme constraint of its own: an `appUrl`
  * under any scheme is accepted when its origin equals the attested one, which
@@ -296,6 +296,13 @@ export function serializedAppUrl({
     notAbsoluteMessage: `An AppConnectQuery "appUrl" must be an absolute URL (got "${appUrl}").`,
     fragmentMessage: `An AppConnectQuery "appUrl" must not carry a fragment (got "${appUrl}").`
   })
+  // Read from the serialization, as the fragment check is: a bare trailing
+  // "?" sets an empty query that `url.search` reports as ''.
+  if (url.href.includes('?')) {
+    throw new Error(
+      `An AppConnectQuery "appUrl" must not carry a query (got "${appUrl}").`
+    )
+  }
   let attestedOrigin: string
   try {
     attestedOrigin = new URL(origin).origin
@@ -508,8 +515,7 @@ export function didAuthMethodSupported(
   presentableMethods: readonly string[] = DEFAULT_PRESENTABLE_DID_METHODS
 ): boolean {
   const didAuth = queries.find(query => query.type === 'DIDAuthentication') as
-    | IDIDAuthenticationQuery
-    | undefined
+    IDIDAuthenticationQuery | undefined
   const acceptedMethods = didAuth?.acceptedMethods
   if (!Array.isArray(acceptedMethods) || acceptedMethods.length === 0) {
     return true

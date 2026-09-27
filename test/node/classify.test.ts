@@ -461,6 +461,21 @@ describe('serializedAppUrl', () => {
     ).toThrow(/fragment/)
   })
 
+  it('rejects an appUrl carrying a query, including a bare "?"', () => {
+    expect(() =>
+      serializedAppUrl({ appUrl: 'https://app.example/notes/?v=2', origin })
+    ).toThrow(/query/)
+    expect(() =>
+      serializedAppUrl({ appUrl: 'https://app.example/notes/?', origin })
+    ).toThrow(/query/)
+  })
+
+  it('accepts a percent-encoded %3F (not a query)', () => {
+    expect(
+      serializedAppUrl({ appUrl: 'https://app.example/no%3Ftes', origin })
+    ).toBe('https://app.example/no%3Ftes')
+  })
+
   it('accepts a percent-encoded %23 (not a fragment)', () => {
     expect(
       serializedAppUrl({ appUrl: 'https://app.example/no%23tes', origin })
