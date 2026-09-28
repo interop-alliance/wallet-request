@@ -1,5 +1,11 @@
 # @interop/wallet-request Changelog
 
+## 0.4.1 - TBD
+
+### Fixed
+
+- Update to latest vc published vc dep.
+
 ## 0.4.0 - 2026-09-27
 
 ### Changed
