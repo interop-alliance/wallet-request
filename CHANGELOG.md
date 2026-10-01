@@ -1,5 +1,14 @@
 # @interop/wallet-request Changelog
 
+## 0.4.2 - TBD
+
+### Changed
+
+- Docs: the party that sends a request and receives grants is the "requester"
+  (an app, service, or agent), defined in the ARCHITECTURE.md Glossary. JSDoc on
+  `IVPRDetails.agent`, `normalizeAgentName`, `AGENT_NAME_MAX_LENGTH`, and
+  `composeCapabilityRequest` uses that term.
+
 ## 0.4.1 - 2026-09-27
 
 ### Fixed

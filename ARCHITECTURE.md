@@ -242,6 +242,13 @@ in code, tests, docs, commit messages, and conversation.
 - **VPR (Verifiable Presentation Request)** -- the VCALM query vocabulary a
   requester sends and a wallet answers. Defined in
   `@interop/data-integrity-core`, re-exported from `types.ts`.
+- **Requester** -- the party that sends a VPR and receives what the wallet
+  grants: an app, service, or agent. A requester may have no attested origin, as
+  when a CLI or a server process asks through an interaction URL, so the general
+  term assumes none. Its self-declared display name, when it sends one, is the
+  VPR's root `agent` member (`requestingAgentOf`). "App" names the requester
+  only within the App Connect exchange, where the attested origin and `appUrl`
+  identify it. Avoid: application (for the requester in general).
 - **QueryByExample** -- one VPR query type: a credential-shape template a wallet
   matches its store against. `matching.ts` implements two matchers over it.
 - **App Connect query (`AppConnectQuery`)** -- the App Connect companion spec's

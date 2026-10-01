@@ -382,13 +382,14 @@ export function appConnectRequestOf({
 }
 
 /**
- * The longest self-declared agent name a request may carry, after trimming.
+ * The longest self-declared name (the VPR's `agent.name`) the requester (an
+ * app, service, or agent) may send, after trimming.
  */
 export const AGENT_NAME_MAX_LENGTH = 64
 
 /**
- * Normalizes a self-declared agent name to the form the consent surface and
- * the Login activity carry: trimmed, 1 to {@link AGENT_NAME_MAX_LENGTH}
+ * Normalizes a requester's self-declared name to the form the consent surface
+ * and the Login activity carry: trimmed, 1 to {@link AGENT_NAME_MAX_LENGTH}
  * characters, with no control characters (C0 or C1, line breaks included).
  * Any Unicode letter is fine -- names are not ASCII-only -- but a name that
  * could spoof layout or sneak past a one-line render is refused. Both the

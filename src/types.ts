@@ -77,12 +77,13 @@ export interface CHAPIProtocols {
 
 /**
  * The body of a Verifiable Presentation Request, widened from the spec
- * vocabulary with the wallet-layer `agent` member: the requester's
- * self-declared display name on a standalone capability request (an agent
- * asking for grants through an interaction URL, where no attested origin
- * names it). One member at the VPR root rather than one per query, since a
- * single agent sends the whole request. Display only and attacker-controlled,
- * like App Connect's `app.name`; `requestingAgentOf` validates it.
+ * vocabulary with the wallet-layer `agent` member. It carries the
+ * self-declared display name of the requester (an app, service, or agent) on
+ * a standalone capability request. Such a requester asks for grants through
+ * an interaction URL, where no attested origin names it. The member sits at
+ * the VPR root rather than on each query, since one requester sends the whole
+ * request. It is display only and attacker-controlled, like App Connect's
+ * `app.name`. `requestingAgentOf` validates it.
  */
 export type IVPRDetails = ISpecVPRDetails & { agent?: { name: string } }
 
@@ -146,8 +147,8 @@ export interface VCAPIExchangeResponse {
  * A VP Request classified on independent axes: whether DID Authentication is
  * requested, what credentials are asked for (`vcQueries`), and what capability
  * delegations are asked for (`zcapRequests`). Any combination is valid,
- * including zcap-only. An app that layers additional query kinds on top (e.g.
- * Freewallet's App Connect) extends this shape with its own field.
+ * including zcap-only. A wallet that layers additional query kinds on top
+ * (e.g. Freewallet's App Connect) extends this shape with its own field.
  */
 export interface WalletRequestProfile {
   didAuth: boolean

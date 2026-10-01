@@ -505,8 +505,7 @@ function subjectStringField({
   field: string
 }): string | undefined {
   const subject = credential.credentialSubject as
-    | Record<string, unknown>
-    | undefined
+    Record<string, unknown> | undefined
   const value =
     subject && typeof subject === 'object' ? subject[field] : undefined
   return typeof value === 'string' ? value : undefined

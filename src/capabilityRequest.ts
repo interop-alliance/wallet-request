@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 /**
- * The zcap-only Verifiable Presentation Request: the request a relying party
- * stores on an ephemeral exchange (`ephemeralExchange.ts`) when all it wants
+ * The zcap-only Verifiable Presentation Request: the request a requester (an
+ * app, service, or agent) stores on an ephemeral exchange (`ephemeralExchange.ts`) when all it wants
  * from the wallet is delegated capabilities on the user's Space. One
  * `AuthorizationCapabilityQuery` (the canonical VCALM type string; the wallet
  * side's `zcapQueriesOf` reads it back) carrying the requested capability
@@ -33,7 +33,7 @@ import { normalizeAgentName } from './classify.js'
  *   echoes in its response presentation
  * @param [options.agent] {{ name: string }}   the requester's self-declared
  *   display name, carried as the VPR's root `agent` member; shown at consent
- *   as what the agent calls itself, not as verified identity. Validated by
+ *   as what the requester calls itself, not as verified identity. Validated by
  *   `normalizeAgentName` (trimmed, 1 to 64 characters, no control
  *   characters), so a name the wallet would refuse fails here first.
  * @returns {IVPRDetails}
