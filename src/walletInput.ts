@@ -33,7 +33,12 @@
  *    registered scheme (a plain `https:` QR from a site that has one). The
  *    parameter form is checked before the raw-JSON form so the message is
  *    handed back parsed either way.
- * 7. **`credentials`** -- the fallback: raw VC/VP JSON, or a URL to fetch one
+ * 7. **`malformed-request`** -- a wallet API message recognized by shape but
+ *    refused by the parse boundary (today: a presentation request naming
+ *    `DIDAuthentication` more than once). The text is a request, so it must
+ *    not fall to the credentials branch, where the resolver would misdescribe
+ *    it. The refusal rides along as `cause`, so the classifier never throws.
+ * 8. **`credentials`** -- the fallback: raw VC/VP JSON, or a URL to fetch one
  *    from. Deliberately last, since it is the only branch that cannot be
  *    recognized positively.
  *
@@ -73,6 +78,7 @@ export type WalletInput =
   | { kind: 'interaction-url'; text: string }
   | { kind: 'deep-link'; text: string }
   | { kind: 'wallet-api-message'; text: string; message: WalletApiMessage }
+  | { kind: 'malformed-request'; text: string; cause: Error }
   | { kind: 'credentials'; text: string }
 
 /**
@@ -194,9 +200,18 @@ export function classifyWalletInput(
   // its `request` parameter (a site's own QR code).
   const messageObject =
     parseWalletApiUrl({ url: trimmed }) ?? walletApiMessageObjectOf(trimmed)
-  const message = messageObject
-    ? parseWalletApiMessage({ messageObject })
-    : undefined
+  let message: WalletApiMessage | undefined
+  if (messageObject) {
+    try {
+      message = parseWalletApiMessage({ messageObject })
+    } catch (err) {
+      log.debug('The wallet API message was refused by the parse boundary', {
+        err
+      })
+      const cause = err instanceof Error ? err : new Error(String(err))
+      return { kind: 'malformed-request', text: trimmed, cause }
+    }
+  }
   if (message) {
     return { kind: 'wallet-api-message', text: trimmed, message }
   }
@@ -241,6 +256,7 @@ export interface WalletInputHandlers<T> {
     text: string
     message: WalletApiMessage
   }) => T | Promise<T>
+  malformedRequest?: (input: { text: string; cause: Error }) => T | Promise<T>
   credentials?: (input: { text: string }) => T | Promise<T>
 }
 
@@ -290,6 +306,8 @@ export async function handleWalletInput<T>({
       return dispatch({ handler: handlers.deepLink, input })
     case 'wallet-api-message':
       return dispatch({ handler: handlers.walletApiMessage, input })
+    case 'malformed-request':
+      return dispatch({ handler: handlers.malformedRequest, input })
     default:
       return dispatch({ handler: handlers.credentials, input })
   }

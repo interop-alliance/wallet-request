@@ -1,5 +1,23 @@
 # @interop/wallet-request Changelog
 
+## 0.5.1 - TBD
+
+### Added
+
+- A `malformed-request` `WalletInput` kind (`{ kind, text, cause }`) and a
+  `malformedRequest` handler slot in `WalletInputHandlers`. It sits after
+  `wallet-api-message` and before `credentials`: a wallet API message recognized
+  by shape but refused at the parse boundary lands there, with the refusal as
+  `cause`. Without a `malformedRequest` handler, `handleWalletInput` throws
+  `UnhandledWalletInputError` with kind `malformed-request`. The kind is
+  additive for callers that switch on `kind` with a default branch. Callers with
+  an exhaustive switch gain a case.
+
+### Fixed
+
+- `classifyWalletInput` no longer throws on a VPR naming `DIDAuthentication`
+  more than once. It classifies it as `malformed-request` (WR-2).
+
 ## 0.5.0 - 2026-10-06
 
 ### Added

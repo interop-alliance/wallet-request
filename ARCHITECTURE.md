@@ -95,7 +95,7 @@ root barrel:                 index.ts re-exports every module, plus
 ## The wallet-input classifier (`walletInput.ts`)
 
 `classifyWalletInput` is the universal entry point for "scan or paste
-something": an ordered discrimination over seven input kinds, most-specific
+something": an ordered discrimination over eight input kinds, most-specific
 first, because the grammars are subsets of one another:
 
 1. `was-link` (non-URL JSON blob)
@@ -107,8 +107,17 @@ first, because the grammars are subsets of one another:
    lookalike host such as `https://wallet.example.com.evil.org`)
 6. `wallet-api-message` (raw JSON, or a `request` parameter on a non-registered
    link)
-7. `credentials` (raw VC/VP JSON or a URL to fetch) -- last, since it cannot be
+7. `malformed-request` (a wallet API message recognized by shape but refused at
+   the parse boundary, such as a VPR naming `DIDAuthentication` twice; carries
+   the refusal as `cause`)
+8. `credentials` (raw VC/VP JSON or a URL to fetch) -- last, since it cannot be
    recognized positively and there is no "unrecognized" state
+
+Classification does not throw on hostile input. A refused request becomes the
+`malformed-request` kind, so the app renders a refusal rather than a raw error.
+The text is a request, and the credentials resolver's error would misdescribe it
+and lose the reason. The credentials branch stays the sink only for text no
+grammar recognized.
 
 Classification does no fetch, navigation, or storage. `handleWalletInput`
 dispatches the classified result to caller-supplied handlers; a kind with no
@@ -119,9 +128,9 @@ can never fire, and `handleWalletInput` logs a warning for it.
 
 ### The wallet-core conventions the classifier recognizes
 
-Two of the seven grammars belong to an account convention this package does not
-own, and the move out of `@interop/wallet-core` changed how the classifier
-reaches them.
+Two of the classifier's grammars belong to an account convention this package
+does not own, and the move out of `@interop/wallet-core` changed how the
+classifier reaches them.
 
 **The `recognizers` option.** `classifyWalletInput` and `handleWalletInput` no
 longer import wallet-core's connect-code prefix or `was-link` payload shape.
@@ -148,7 +157,7 @@ which wallet is asking.
 
 ## Invariants
 
-1. **Classification order.** `classifyWalletInput`'s seven-way discrimination
+1. **Classification order.** `classifyWalletInput`'s eight-way discrimination
    runs most-specific first (see above); reordering it changes which grammar a
    piece of ambiguous text is read as.
 2. **No fetch, navigate, or store during classification.** `walletInput.ts`,
@@ -207,6 +216,10 @@ which wallet is asking.
     `Logger` type lives in `test/node/log.test.ts` instead. Every other call
     site in `src/` may only take `@interop/logger` as a type-only import,
     enforced by an eslint `no-restricted-imports` rule.
+12. **Classification does not throw on hostile input.** A wallet API message
+    that `parseWalletApiMessage` refuses becomes the `malformed-request` kind,
+    with the refusal as `cause`. It does not escape `classifyWalletInput` as a
+    thrown error, and it does not fall through to `credentials`.
 
 ### The document loader
 
@@ -289,12 +302,16 @@ in code, tests, docs, commit messages, and conversation.
 
 - **Wallet input** -- the raw text a wallet accepts from a QR scan, a paste box,
   a file drop, or an opened deep link, before classification.
-  `classifyWalletInput` turns it into one of the seven `WalletInput` kinds.
-- **The seven input kinds** -- `was-link`, `connect-code`, `legacy-request`,
-  `interaction-url`, `deep-link`, `wallet-api-message`, `credentials`; see "The
-  wallet-input classifier" above. Avoid: input types, grammars (when a bare
-  synonym would do; "grammar" is fine when discussing the discrimination
-  itself).
+  `classifyWalletInput` turns it into one of the eight `WalletInput` kinds.
+- **The eight input kinds** -- `was-link`, `connect-code`, `legacy-request`,
+  `interaction-url`, `deep-link`, `wallet-api-message`, `malformed-request`,
+  `credentials`; see "The wallet-input classifier" above. Avoid: input types,
+  grammars (when a bare synonym would do; "grammar" is fine when discussing the
+  discrimination itself).
+- **Malformed request** -- the `malformed-request` input kind: a wallet API
+  message recognized by shape but refused at the parse boundary. It carries the
+  refusal as `cause`, and the app's `malformedRequest` handler renders it.
+  Avoid: invalid request, bad request, unrecognized input.
 - **VPR (Verifiable Presentation Request)** -- the VCALM query vocabulary a
   requester sends and a wallet answers. Defined in
   `@interop/data-integrity-core`, re-exported from `types.ts`.

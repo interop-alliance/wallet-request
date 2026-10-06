@@ -3,10 +3,13 @@
  * (`src/walletInput.ts`): every grammar lands in its own branch, the order
  * holds where grammars overlap (a legacy request ahead of the generic deep
  * link, an interaction URL ahead of it too), the two account-convention
- * branches match only through their injected recognizers, and the handler
- * dispatch refuses a kind this wallet did not implement.
+ * branches match only through their injected recognizers, a wallet API
+ * message the parse boundary refuses lands in the malformed-request branch
+ * instead of throwing, and the handler dispatch refuses a kind this wallet did
+ * not implement.
  */
 import { describe, expect, it } from 'vitest'
+import { isDIDAuthOnlyRequest } from '../../src/parse.js'
 import {
   classifyWalletInput,
   handleWalletInput
@@ -29,6 +32,10 @@ const recognizers: WalletInputRecognizers = {
   },
   isConnectCode: text => text.startsWith('freewallet-connect:')
 }
+
+const DOUBLE_DID_AUTH_VPR =
+  '{"verifiablePresentationRequest":{"query":' +
+  '[{"type":"DIDAuthentication"},{"type":"DIDAuthentication"}]}}'
 
 const WAS_LINK =
   '{"v":1,"t":"was-link","serverUrl":"https://was.example","secret":"Y29ycmVjdCBob3JzZQ"}'
@@ -151,6 +158,36 @@ describe('classifyWalletInput', () => {
     expect(input.kind).toBe('wallet-api-message')
   })
 
+  it('does not throw on a null presentation request', () => {
+    const input = classifyWalletInput('{"verifiablePresentationRequest": null}')
+    expect(input.kind).toBe('wallet-api-message')
+    if (input.kind === 'wallet-api-message') {
+      expect(isDIDAuthOnlyRequest(input.message)).toBe(false)
+    }
+  })
+
+  it('refuses a request naming DIDAuthentication twice without throwing', () => {
+    const input = classifyWalletInput(`  ${DOUBLE_DID_AUTH_VPR}  `)
+    expect(input).toMatchObject({
+      kind: 'malformed-request',
+      text: DOUBLE_DID_AUTH_VPR
+    })
+    if (input.kind === 'malformed-request') {
+      expect(input.cause).toBeInstanceOf(Error)
+    }
+  })
+
+  it('refuses the same request carried in a request parameter', () => {
+    const text =
+      'https://verifier.example/login?request=' +
+      encodeURIComponent(DOUBLE_DID_AUTH_VPR)
+    const input = classifyWalletInput(text, { deepLinkSchemes: schemes })
+    expect(input).toMatchObject({ kind: 'malformed-request', text })
+    if (input.kind === 'malformed-request') {
+      expect(input.cause).toBeInstanceOf(Error)
+    }
+  })
+
   it('falls back to credentials for a plain URL or raw VC', () => {
     expect(
       classifyWalletInput('https://example.com/credential.json').kind
@@ -170,6 +207,30 @@ describe('handleWalletInput', () => {
       }
     })
     expect(result).toBe('connect:freewallet-connect:abc')
+  })
+
+  it('dispatches a malformed request to its handler', async () => {
+    const result = await handleWalletInput({
+      text: DOUBLE_DID_AUTH_VPR,
+      handlers: {
+        malformedRequest: ({ cause }) =>
+          cause instanceof Error ? 'malformed' : 'not an error',
+        credentials: () => 'credentials'
+      }
+    })
+    expect(result).toBe('malformed')
+  })
+
+  it('refuses a malformed request without its handler', async () => {
+    await expect(
+      handleWalletInput({
+        text: DOUBLE_DID_AUTH_VPR,
+        handlers: { credentials: () => 'credentials' }
+      })
+    ).rejects.toMatchObject({
+      name: 'UnhandledWalletInputError',
+      kind: 'malformed-request'
+    })
   })
 
   it('refuses a kind this wallet does not implement', async () => {
