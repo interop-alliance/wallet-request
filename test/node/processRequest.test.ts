@@ -5,8 +5,9 @@
  * Unit tests for the pure request-to-response pipeline
  * (`src/processRequest.ts`): the domain-binding check, the App Connect
  * gate and its preconditions (processor present, origin present, query
- * well-formed), the zcap delegation path, the nothing-to-send case, and the
- * signed DID-Auth response. Real Ed25519 keys sign the presentations.
+ * well-formed), the zcap delegation path, the nothing-to-send case, the
+ * signed DID-Auth response, and the response signed without a DID Auth
+ * query. Real Ed25519 keys sign the presentations.
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -183,6 +184,84 @@ describe('processRequest', () => {
     ).toEqual(['space'])
     expect(response.zcaps).toEqual([zcap])
     expect(response.verifiablePresentation?.proof).toBeUndefined()
+  })
+
+  describe('signWithoutDidAuth', () => {
+    function zcapOnlyRequest(rest: Partial<IVPRDetails> = {}): IVPRDetails {
+      return {
+        query: [
+          queryOfType('AuthorizationCapabilityQuery', {
+            capabilityQuery: {
+              referenceId: 'space',
+              allowedAction: ['GET'],
+              invocationTarget: 'https://was.example/space/abc/'
+            }
+          })
+        ],
+        challenge: 'c1',
+        domain: 'app.example',
+        ...rest
+      }
+    }
+
+    function zcapProcessors(): RequestProcessors {
+      const zcap = { id: 'urn:zcap:1' } as never as IZcap
+      return { processZcaps: vi.fn(async () => [zcap]) }
+    }
+
+    it('signs a zcap-only response over the root challenge with no domain', async () => {
+      const presentationSigner = await makePresentationSigner()
+      const response = await processRequest({
+        request: zcapOnlyRequest(),
+        presentationSigner,
+        credentialRequestOrigin: ORIGIN,
+        processors: zcapProcessors(),
+        signWithoutDidAuth: true
+      })
+      const vp = response.verifiablePresentation
+      expect(vp?.holder).toBe(presentationSigner.holder)
+      const proof = vp?.proof as { challenge?: string; domain?: string }
+      expect(proof.challenge).toBe('c1')
+      expect(proof.domain).toBeUndefined()
+    })
+
+    it('leaves the response unsigned without the switch', async () => {
+      const presentationSigner = await makePresentationSigner()
+      const response = await processRequest({
+        request: zcapOnlyRequest(),
+        presentationSigner,
+        credentialRequestOrigin: ORIGIN,
+        processors: zcapProcessors()
+      })
+      expect(response.verifiablePresentation).toBeDefined()
+      expect(response.verifiablePresentation?.proof).toBeUndefined()
+    })
+
+    it('refuses to sign without a root challenge, delegating nothing', async () => {
+      const presentationSigner = await makePresentationSigner()
+      const processors = zcapProcessors()
+      await expect(
+        processRequest({
+          request: zcapOnlyRequest({ challenge: undefined }),
+          presentationSigner,
+          credentialRequestOrigin: ORIGIN,
+          processors,
+          signWithoutDidAuth: true
+        })
+      ).rejects.toThrow(/"challenge" is required to sign/)
+      expect(processors.processZcaps).not.toHaveBeenCalled()
+    })
+
+    it('still returns {} when there is nothing to send', async () => {
+      const presentationSigner = await makePresentationSigner()
+      await expect(
+        processRequest({
+          request: { query: queryOfType('QueryByExample'), challenge: 'c1' },
+          presentationSigner,
+          signWithoutDidAuth: true
+        })
+      ).resolves.toEqual({})
+    })
   })
 
   describe('the App Connect gate', () => {

@@ -128,8 +128,11 @@ Each work item follows this schema:
 
 Rules:
 
-- Item ids are permanent and never reused. A new item takes the next unused
-  number, regardless of which section it lands in.
+- Item ids are permanent and never reused. The `nextAvailableId: <n>` line at
+  the top of ROADMAP.md is the sole source of the next id: filing an item takes
+  `n` and rewrites the line to `n + 1`, in the same edit, regardless of which
+  section the item lands in. Never derive the next id by scanning the roadmap;
+  the highest id usually lives in archived-roadmap.md, not in the open roadmap.
 - Every non-draft item needs acceptance criteria before it may be moved to
   `in-progress`.
 - Statuses are edited in place (change the `status:` field); acceptance

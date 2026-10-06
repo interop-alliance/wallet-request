@@ -44,6 +44,7 @@
 export { setLogger } from './log.js'
 export type { Logger } from './log.js'
 export * from './types.js'
+export * from './documentLoader.js'
 export * from './parse.js'
 export * from './queryPredicates.js'
 export * from './classify.js'

@@ -43,20 +43,23 @@ no cycles.
 
 ```
 layer 0 (no internal deps):  types            log
+                             documentLoader
 layer 1:                     queryPredicates  (types)
+                             appKey           (documentLoader, types)
 layer 2:                     classify         (types, queryPredicates)
 layer 3:                     parse            (log, classify, types)
                              presentationSuite (classify, types)
                              matching         (types, classify,
                                                 queryPredicates)
-                             capabilityRequest (classify, types)
                              onboarding       (queryPredicates, types)
                              ephemeralExchange (log, types)
 layer 4:                     composeVp        (presentationSuite, classify,
-                                                queryPredicates, types)
+                                                queryPredicates, documentLoader,
+                                                types)
                              exchangeClient   (ephemeralExchange, types)
                              interactionUrl   (log, ephemeralExchange, types)
-layer 5:                     appKey           (composeVp, types)
+layer 5:                     capabilityRequest (classify, documentLoader,
+                                                types)
                              processRequest   (log, classify, composeVp,
                                                 presentationSuite,
                                                 queryPredicates, types)
@@ -71,12 +74,13 @@ root barrel:                 index.ts re-exports every module, plus
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `types.ts`              | The VPR vocabulary re-exported from `@interop/data-integrity-core`'s `/vpr` and `/guards` subpaths, plus the request-local types: CHAPI event shapes, the VC-API exchange reply shape, the classified-request profile, and the injection-seam types `PresentationSigner` / `FetchLike` / `RequestProcessors` |
 | `log.ts`                | The logging port: a local `Logger` type, `setLogger`, and a console fallback prefixed `[wallet-request]`                                                                                                                                                                                                     |
+| `documentLoader.ts`     | The shared JSON-LD document loader: the security contexts plus the bundled App Connect context (see "The document loader" below)                                                                                                                                                                             |
 | `queryPredicates.ts`    | Import-free helpers shared by the classifiers: `isZcapQuery`, the exclusive-query-type set, and `parsedAbsoluteUrl`, the parse-and-no-fragment core every URL validator layers on top of                                                                                                                     |
 | `classify.ts`           | Turns a CHAPI event or a VPR's queries into typed requests; `appConnectRequestOf` validates the `AppConnectQuery`'s `app.appUrl` against the attested requesting origin                                                                                                                                      |
 | `parse.ts`              | Turns deep links and JSON into typed wallet-API messages                                                                                                                                                                                                                                                     |
 | `presentationSuite.ts`  | Cryptosuite negotiation for the response VP                                                                                                                                                                                                                                                                  |
 | `matching.ts`           | The QueryByExample matchers: DCW's deep matcher and freewallet's type/issuer matcher, shipped side by side                                                                                                                                                                                                   |
-| `capabilityRequest.ts`  | `composeCapabilityRequest`: the zcap-only VPR a requester stores on an ephemeral exchange                                                                                                                                                                                                                    |
+| `capabilityRequest.ts`  | `composeCapabilityRequest`: the zcap-only VPR a requester stores on an ephemeral exchange; `signCapabilityRequest` / `verifyCapabilityRequest`: the connection request's proof by the named `controller` (see "The connection request proof" below)                                                          |
 | `onboarding.ts`         | The `WalletOnboardingQuery` transport vocabulary: compose and classification, plus the did:webvh `did` shape check                                                                                                                                                                                           |
 | `ephemeralExchange.ts`  | The requester's side of a WAS server's ephemeral exchange: create one carrying a VPR, then poll until the wallet answers                                                                                                                                                                                     |
 | `composeVp.ts`          | Builds the response VP, embedding grants before signing                                                                                                                                                                                                                                                      |
@@ -173,17 +177,29 @@ which wallet is asking.
    `err.name`), not answered as an empty generic response.
 6. **Grants go inside the VP before signing.** `composeVp.ts` embeds grants in
    the presentation before it is signed, so the DIDAuth proof covers them.
-7. **App keys are wallet-minted, not imported.** `appKey.ts`'s store-time
+7. **The response signing rule.** `processRequest` signs the response VP in two
+   cases only: when the request carries a `DIDAuthentication` query, or when the
+   caller switches `signWithoutDidAuth` on and no such query is present. Both
+   sign with the one `presentationSigner`; there is no second signer option,
+   since two signers would need a precedence rule. The switched path signs over
+   the VPR-root `challenge` and sets no `domain`, since a requester on an
+   interaction URL has no attested origin a `domain` could be checked against.
+   The relay defense for that path lives on the request side instead (see "The
+   connection request proof" below). The App Connect branch returns before the
+   switch is read: its `processAppConnect` processor composes and signs its own
+   response. The missing-`challenge` refusal on the switched path runs before
+   `processZcaps`, so a refused request delegates nothing.
+8. **App keys are wallet-minted, not imported.** `appKey.ts`'s store-time
    refusal policy rejects an app-key credential the wallet did not mint itself.
-8. **`processRequest` is pure.** Consent and the response channel stay with the
+9. **`processRequest` is pure.** Consent and the response channel stay with the
    caller; zcap and App Connect processing arrive as injected
    `RequestProcessors`, and the App Connect branch is validated through
    `appConnectRequestOf` before dispatch.
-9. **Two matchers ship deliberately.** `matching.ts` carries DCW's deep matcher
-   and freewallet's type/issuer matcher side by side, since each wallet matches
-   only its own credential store and no cross-replica agreement is needed
-   between them.
-10. **The logging port carries no runtime reference to `@interop/logger`.**
+10. **Two matchers ship deliberately.** `matching.ts` carries DCW's deep matcher
+    and freewallet's type/issuer matcher side by side, since each wallet matches
+    only its own credential store and no cross-replica agreement is needed
+    between them.
+11. **The logging port carries no runtime reference to `@interop/logger`.**
     `log.ts` declares its own `Logger` type rather than importing it, even as a
     type-only import, so the emitted `dist/log.d.ts` names no specifier from
     that package; `test:dist` greps the built output for the string to enforce
@@ -194,16 +210,56 @@ which wallet is asking.
 
 ### The document loader
 
-`composeVp.ts` builds the module-level `documentLoader` the signing paths
-(`composeVp`, `issueAppKeyCredential`) canonicalize with. It bundles the
-standard security contexts and the App Connect context, and it is built with
-`fetchRemoteContexts: true`, so a credential whose `@context` names a URL that
-is not bundled is resolved over a live HTTPS GET through the global `fetch`.
-This is the one network path in the package that does not go through an injected
-`FetchLike`: it runs inside JSON-LD canonicalization, where the loader is the
-seam, not `fetch`. A wallet that must keep signing offline, or route the GET
-through its own transport, passes its own loader as `composeVp`'s
-`documentLoader` option.
+`documentLoader.ts` builds the module-level `documentLoader` the signing paths
+(`composeVp`, `issueAppKeyCredential`, `signCapabilityRequest`) canonicalize
+with, and `verifyCapabilityRequest` resolves did:key verification methods
+through. It is a layer-0 leaf so request signing does not depend on VP
+composition for a constant. It bundles the standard security contexts and the
+App Connect context, and it is built with `fetchRemoteContexts: true`, so a
+credential whose `@context` names a URL that is not bundled is resolved over a
+live HTTPS GET through the global `fetch`. This is the one network path in the
+package that does not go through an injected `FetchLike`: it runs inside JSON-LD
+canonicalization, where the loader is the seam, not `fetch`. A wallet that must
+keep signing offline, or route the GET through its own transport, passes its own
+loader as `composeVp`'s `documentLoader` option.
+
+### The connection request proof
+
+A connection request is a capability request an agent sends over an interaction
+URL to be answered with a response signed by the wallet's pairwise did:key
+toward that agent. The App Connect companion spec's agent connect section
+defines the proof; this package implements both sides of it in
+`capabilityRequest.ts`.
+
+`composeCapabilityRequest` puts the requester's `challenge` at the VPR root,
+beside the copy inside the `AuthorizationCapabilityQuery`, because the root
+`challenge` is the one `processRequest` signs the response over.
+`signCapabilityRequest` then signs the whole request with the key of the
+`controller` the capability queries name: a `proof` at the VPR root,
+`DataIntegrityProof` with cryptosuite `eddsa-jcs-2022`, purpose
+`authentication`, the proof's `challenge` equal to the root `challenge`, and no
+`domain`. JCS canonicalization signs every member of the request as JSON, so the
+`controller`, the capability queries, the `challenge`, and `agent.name` are
+covered with no JSON-LD term mapping. The signed request carries
+`@context: ['https://w3id.org/security/data-integrity/v2']`, which the Data
+Integrity signing path adds and the verifier requires; the unsigned builder
+output carries no `@context`.
+
+`verifyCapabilityRequest` is the wallet's precheck. It refuses a request with no
+proof, more than one proof, another `type` or `cryptosuite`, a purpose other
+than `authentication`, a `domain`, a missing root `challenge`, a proof
+`challenge` that differs from the root one, capability queries naming more than
+one `controller`, a `controller` that is not a did:key, or a
+`verificationMethod` outside the named `controller`'s DID, and then checks the
+signature through the shared document loader (did:key resolution). The did:key
+rule comes before the loader runs: an untrusted request must not be able to name
+a did:web or an https URL and have the wallet fetch it. The request is read
+through a JSON round trip, so a non-JSON value is refused with the same plain
+`Error` as every other check. A phishing exchange cannot author a request the
+named agent signed, and a tampered copy fails the signature check, so the wallet
+is not tricked into minting a pairwise key toward a party that never asked.
+Whether a request is a connection request at all, and the refusal copy, stay
+with the wallet.
 
 ## Ownership heuristics
 
@@ -266,6 +322,13 @@ in code, tests, docs, commit messages, and conversation.
   `interactionUrl.ts` resolves it; `interactionRequest.ts`'s
   `openInteractionRequest` is the answering wallet's one-call entry point over
   one.
+- **Connection request** -- a capability request sent over an interaction URL
+  whose answer is a response presentation signed by the wallet's pairwise
+  did:key toward the requesting agent. It carries the request proof (below).
+  Which capability requests count as connection requests is the wallet's rule.
+- **Request proof** -- the `eddsa-jcs-2022` proof the named `controller` puts on
+  a connection request; produced by `signCapabilityRequest`, checked by
+  `verifyCapabilityRequest`. Distinct from the response presentation's proof.
 - **Ephemeral exchange** -- a WAS server's short-lived, unauthenticated exchange
   resource: a requester creates one carrying a VPR and polls it until the wallet
   answers. `ephemeralExchange.ts` is the requester's side.

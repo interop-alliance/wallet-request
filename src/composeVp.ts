@@ -3,23 +3,24 @@
  */
 /**
  * Composes a Verifiable Presentation to send back to a requester. The VP is
- * signed when DID Authentication was requested (proving control of the holder's
- * DID over the request's `challenge`, and `domain` when the verifier sends
- * one), and unsigned otherwise.
+ * signed when the caller asks for a signature (proving control of the holder's
+ * DID over the request's `challenge`, and `domain` when given one), and
+ * unsigned otherwise. The caller decides when to sign: under a DID
+ * Authentication query, or for a response the wallet signs on its own terms.
  *
  * Merged from DCW's `app/lib/composeVp.ts` and Freewallet's
  * `src/lib/walletRequest/composeVP.ts`. The signer and holder DID are injected
  * as a {@link PresentationSigner} -- each app resolves them from its own key
  * material -- and the optional zcap / appConnect embedding (grants ride inside
  * the VP, added before signing so a DIDAuth proof covers them) is carried over
- * from Freewallet. The DIDAuth guard follows DCW: `challenge` is required,
+ * from Freewallet. The signing guard follows DCW: `challenge` is required,
  * `domain` is optional (a wallet that needs the stricter "domain always
  * present" invariant enforces it in its own wrapper before calling here).
  */
 import * as vc from '@interop/vc'
-import { securityLoader } from '@interop/security-document-loader'
-import { contexts as byoeContexts, CONTEXT_URL_V1 } from 'byoe-context'
+import { CONTEXT_URL_V1 } from 'byoe-context'
 import type { IDocumentLoader } from '@interop/data-integrity-core'
+import { documentLoader } from './documentLoader.js'
 import { presentationSuiteFor } from './presentationSuite.js'
 import { presentationVersionFor } from './classify.js'
 import { toArray } from './queryPredicates.js'
@@ -29,21 +30,6 @@ import type {
   IZcap,
   PresentationSigner
 } from './types.js'
-
-/**
- * Shared JSON-LD document loader for presentation and credential signing: the
- * standard security contexts plus the hosted App Connect context, resolved
- * from the bundled `byoe-context` document so neither signing nor verification
- * fetches it. Exported so single-VC issuance paths reuse the same context
- * resolution the VP compose path uses.
- */
-export const documentLoader: IDocumentLoader = (() => {
-  const loader = securityLoader({ fetchRemoteContexts: true })
-  for (const [url, context] of byoeContexts) {
-    loader.addStatic(url, context)
-  }
-  return loader.build()
-})()
 
 /**
  * The hosted App Connect context URL appended to the VP `@context` when grants
@@ -135,14 +121,14 @@ function embedAppConnect(
  *
  * @param options {object}
  * @param [options.presentationSigner] {PresentationSigner} - The authentication
- *   signer and the holder DID to name on a signed VP. Required when
- *   `didAuthRequested` is true; an unsigned (or zcap-only) VP needs none.
+ *   signer and the holder DID to name on a signed VP. Required when `sign`
+ *   is true; an unsigned (or zcap-only) VP needs none.
  * @param [options.selectedVcs] {IVerifiableCredential[]} - VCs the user chose to
  *   share (empty for a DID-Auth-only or zcap-only response).
- * @param [options.challenge] {string} - Required when DID Auth is requested.
+ * @param [options.challenge] {string} - Required when `sign` is true.
  * @param [options.domain] {string} - Signed into the proof when present;
  *   optional per the VPR spec.
- * @param options.didAuthRequested {boolean} - Whether to sign the VP.
+ * @param options.sign {boolean} - Whether to sign the VP.
  * @param [options.cryptosuite] {string} - Negotiated cryptosuite; falls back to
  *   the wallet default (Ed25519Signature2020) when absent.
  * @param [options.zcaps] {IZcap[]} - Delegated capabilities to embed as the
@@ -158,7 +144,7 @@ export async function composeVp({
   selectedVcs = [],
   challenge,
   domain,
-  didAuthRequested,
+  sign,
   cryptosuite,
   zcaps = [],
   appConnect,
@@ -168,22 +154,20 @@ export async function composeVp({
   selectedVcs?: IVerifiableCredential[]
   challenge?: string
   domain?: string
-  didAuthRequested: boolean
+  sign: boolean
   cryptosuite?: string
   zcaps?: IZcap[]
   appConnect?: { firstRun: boolean }
   documentLoader?: IDocumentLoader
 }): Promise<IVerifiablePresentation> {
-  if (!didAuthRequested && selectedVcs.length === 0 && zcaps.length === 0) {
-    throw new Error(
-      'A VP requires credentials, capabilities, or a DID Auth request.'
-    )
+  if (!sign && selectedVcs.length === 0 && zcaps.length === 0) {
+    throw new Error('A VP requires credentials, capabilities, or a signature.')
   }
-  if (didAuthRequested && !challenge) {
-    throw new Error('A "challenge" is required for DID Auth.')
+  if (sign && !challenge) {
+    throw new Error('A "challenge" is required to sign a VP.')
   }
 
-  if (!didAuthRequested) {
+  if (!sign) {
     // Return an unsigned VP. verify: false skips per-VC validation (including
     // expiration checks). A zcap-only response rides here: the grants are
     // individually signed and controller-bound, so they need no VP proof.
@@ -200,7 +184,7 @@ export async function composeVp({
   }
 
   if (!presentationSigner) {
-    throw new Error('A "presentationSigner" is required for DID Auth.')
+    throw new Error('A "presentationSigner" is required to sign a VP.')
   }
   const { signer, holder } = presentationSigner
 

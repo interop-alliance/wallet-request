@@ -14,6 +14,12 @@
  * Connect branch -- are injected as {@link RequestProcessors} rather than
  * imported, so this layer carries no session / grant-resolution machinery. The
  * signer and holder DID are injected as a {@link PresentationSigner}.
+ *
+ * The response VP is signed when the request carries a DIDAuthentication
+ * query. A caller may also set `signWithoutDidAuth` to sign a response to a
+ * request with no such query. That proof covers the VPR-root `challenge` and
+ * names no `domain`. The App Connect branch is outside the switch: its
+ * processor owns that response, including whether and how it is signed.
  */
 import { log } from './log.js'
 import { appConnectRequestOf, classifyRequest, queriesOf } from './classify.js'
@@ -110,6 +116,14 @@ export class ExclusiveQueryUnsupportedError extends Error {
  *   App Connect processors.
  * @param [options.cryptosuite] {string} - Cryptosuite override; when absent it
  *   is negotiated from the request's `acceptedCryptosuites`.
+ * @param [options.signWithoutDidAuth] {boolean} - Sign the response VP with
+ *   `presentationSigner` even when the request has no DIDAuthentication
+ *   query. The proof covers the VPR-root `challenge` (required; its absence
+ *   throws) and names no `domain`, even when the request carries one. The
+ *   domain-binding check still runs first. Defaults to false, which signs
+ *   only under DID Auth. A request with nothing to send still returns `{}`.
+ *   Not consulted on the App Connect branch, whose `processAppConnect`
+ *   processor composes and signs its own response.
  * @returns {Promise<WalletResponse>} The response VP (and any granted zcaps), or
  *   `{}` when there is nothing to send.
  */
@@ -119,7 +133,8 @@ export async function processRequest({
   selectedVCs = [],
   credentialRequestOrigin,
   processors,
-  cryptosuite
+  cryptosuite,
+  signWithoutDidAuth = false
 }: {
   request: IVPRDetails
   presentationSigner: PresentationSigner
@@ -127,6 +142,7 @@ export async function processRequest({
   credentialRequestOrigin?: string
   processors?: RequestProcessors
   cryptosuite?: string
+  signWithoutDidAuth?: boolean
 }): Promise<WalletResponse> {
   const { didAuth, zcapRequests } = classifyRequest(request)
   const queries = queriesOf(request)
@@ -192,6 +208,17 @@ export async function processRequest({
     })
   }
 
+  // The response is signed under a DID Auth query, or when the caller asks
+  // for it. A proof made without a DID Auth query binds only the VPR-root
+  // `challenge` and names no `domain`, whatever the request carries. The
+  // challenge guard mirrors composeVp's and runs before any capability is
+  // delegated, so a refused request mints nothing.
+  const sign = didAuth || signWithoutDidAuth
+  const proofDomain = didAuth ? domain : undefined
+  if (sign && !challenge) {
+    throw new Error('A "challenge" is required to sign a VP.')
+  }
+
   // Delegate the approved capabilities first, then embed them in the VP.
   const zcaps: IZcap[] =
     zcapRequests.length > 0 && processors?.processZcaps
@@ -207,8 +234,8 @@ export async function processRequest({
     presentationSigner,
     selectedVcs: selectedVCs,
     challenge,
-    domain,
-    didAuthRequested: didAuth,
+    domain: proofDomain,
+    sign,
     cryptosuite: negotiatedCryptosuite,
     zcaps
   })

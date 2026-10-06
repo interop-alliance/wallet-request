@@ -46,7 +46,7 @@ Request exchange: everything between "the user scanned or pasted something" and
   `interactionUrl.ts` / `interactionRequest.ts` (VCALM interaction URLs),
   `ephemeralExchange.ts` (the requester's side of a WAS server's ephemeral
   exchange), and `capabilityRequest.ts` (the zcap-only VPR a requester stores on
-  one).
+  one, plus the signing and verification of a connection request's proof).
 - **`processRequest.ts`** -- the pure request-to-response pipeline; consent and
   the response channel stay with the caller.
 

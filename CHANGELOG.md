@@ -1,9 +1,36 @@
 # @interop/wallet-request Changelog
 
-## 0.4.2 - TBD
+## 0.5.0 - TBD
+
+### Added
+
+- `processRequest` takes `signWithoutDidAuth`: with no `DIDAuthentication` query
+  present, the response is signed with the existing `presentationSigner` over
+  the VPR-root `challenge` and no `domain`. Default off; unchanged behavior
+  otherwise (WR-3).
+- `composeCapabilityRequest` puts `challenge` at the VPR root beside the copy
+  inside the `AuthorizationCapabilityQuery` (WR-3).
+- `signCapabilityRequest` / `verifyCapabilityRequest` and the
+  `ISignedCapabilityRequest` type: the connection request's proof by the named
+  `controller` (`DataIntegrityProof`, `eddsa-jcs-2022`, purpose
+  `authentication`, proof `challenge` equal to the root one, no `domain`). The
+  signed request carries the Data Integrity v2 `@context`. The verifier refuses
+  a missing or second proof, another cryptosuite or purpose, a `domain`, a
+  challenge mismatch, more than one named `controller`, a `controller` that is
+  not a did:key, a verification method outside that controller, and any failed
+  signature check (WR-3).
+- New direct dependency `@interop/jsonld-signatures` (^11.8.7).
 
 ### Changed
 
+- **BREAKING**: `composeVp`'s `didAuthRequested` option is renamed `sign`. It
+  only ever meant "sign the VP"; the caller decides when that is, so
+  `processRequest` now passes `sign` and the proof's `domain` as plain inputs.
+  The `processAppConnect` processor still receives `didAuthRequested`, which
+  there reports what the request asked for.
+- The shared `documentLoader` moves from `composeVp.ts` to its own
+  `documentLoader.ts` module. It is still exported from the root barrel, so
+  imports are unchanged.
 - Docs: the party that sends a request and receives grants is the "requester"
   (an app, service, or agent), defined in the ARCHITECTURE.md Glossary. JSDoc on
   `IVPRDetails.agent`, `normalizeAgentName`, `AGENT_NAME_MAX_LENGTH`, and

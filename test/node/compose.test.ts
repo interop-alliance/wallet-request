@@ -26,28 +26,28 @@ describe('composeVp', () => {
       composeVp({
         presentationSigner,
         selectedVcs: [],
-        didAuthRequested: false
+        sign: false
       })
-    ).rejects.toThrow(/requires credentials, capabilities, or a DID Auth/)
+    ).rejects.toThrow(/requires credentials, capabilities, or a signature/)
   })
 
   it('throws when DID Auth is requested without a challenge', async () => {
     const presentationSigner = await makePresentationSigner()
     await expect(
-      composeVp({ presentationSigner, didAuthRequested: true, domain: DOMAIN })
+      composeVp({ presentationSigner, sign: true, domain: DOMAIN })
     ).rejects.toThrow(/"challenge" is required/)
   })
 
   it('throws when DID Auth is requested without a presentationSigner', async () => {
     await expect(
-      composeVp({ didAuthRequested: true, challenge: CHALLENGE })
+      composeVp({ sign: true, challenge: CHALLENGE })
     ).rejects.toThrow(/"presentationSigner" is required/)
   })
 
   it('builds an unsigned VP wrapping the selected credentials, no signer needed', async () => {
     const vp = await composeVp({
       selectedVcs: [mockCredential],
-      didAuthRequested: false
+      sign: false
     })
     expect(vp.type).toContain('VerifiablePresentation')
     expect(vp.proof).toBeUndefined()
@@ -58,7 +58,7 @@ describe('composeVp', () => {
   it('builds an unsigned VP in the credentials data model version (VC 2.0)', async () => {
     const vp = await composeVp({
       selectedVcs: [mockCredentialV2],
-      didAuthRequested: false
+      sign: false
     })
     expect(vp.proof).toBeUndefined()
     expect(vp['@context']).toContain('https://www.w3.org/ns/credentials/v2')
@@ -69,7 +69,7 @@ describe('composeVp', () => {
 
   it('builds a zcap-only unsigned VP in VC 1.0', async () => {
     const vp = await composeVp({
-      didAuthRequested: false,
+      sign: false,
       zcaps: [{ id: 'urn:zcap:1' } as never]
     })
     expect(vp['@context']).toContain('https://www.w3.org/2018/credentials/v1')
@@ -79,7 +79,7 @@ describe('composeVp', () => {
     const presentationSigner = await makePresentationSigner()
     const vp = await composeVp({
       presentationSigner,
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE,
       domain: DOMAIN
     })
@@ -93,7 +93,7 @@ describe('composeVp', () => {
     const presentationSigner = await makePresentationSigner()
     const vp = await composeVp({
       presentationSigner,
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE
     })
     expect(vp.holder).toBe(presentationSigner.holder)
@@ -106,7 +106,7 @@ describe('composeVp', () => {
     const vp = await composeVp({
       presentationSigner,
       selectedVcs: [mockCredential],
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE,
       domain: DOMAIN
     })
@@ -118,7 +118,7 @@ describe('composeVp', () => {
     const vp = await composeVp({
       presentationSigner,
       selectedVcs: [],
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE,
       domain: DOMAIN,
       cryptosuite: EDDSA_RDFC_2022
@@ -138,7 +138,7 @@ describe('composeVp with an appConnect marker', () => {
     const presentationSigner = await makePresentationSigner()
     const presentation = (await composeVp({
       presentationSigner,
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE,
       domain: DOMAIN,
       appConnect: { firstRun: true }
@@ -154,7 +154,7 @@ describe('composeVp with an appConnect marker', () => {
     const presentationSigner = await makePresentationSigner()
     const presentation = (await composeVp({
       presentationSigner,
-      didAuthRequested: false,
+      sign: false,
       selectedVcs: [mockCredential],
       appConnect: { firstRun: false }
     })) as { appConnect?: unknown; proof?: unknown }
@@ -167,7 +167,7 @@ describe('composeVp with an appConnect marker', () => {
     const presentationSigner = await makePresentationSigner()
     const presentation = (await composeVp({
       presentationSigner,
-      didAuthRequested: true,
+      sign: true,
       challenge: CHALLENGE,
       domain: DOMAIN
     })) as { appConnect?: unknown; '@context': unknown }
@@ -188,7 +188,7 @@ describe('composeVp with an appConnect marker', () => {
     }
     const presentation = (await composeVp({
       presentationSigner,
-      didAuthRequested: false,
+      sign: false,
       zcaps: [zcap as never]
     })) as { zcap?: unknown; '@context': unknown }
 
@@ -208,7 +208,7 @@ describe('composeVp with an appConnect marker', () => {
     }
     const presentation = (await composeVp({
       presentationSigner,
-      didAuthRequested: false,
+      sign: false,
       zcaps: [zcap as never],
       appConnect: { firstRun: false }
     })) as { zcap?: unknown; appConnect?: unknown; '@context': unknown }

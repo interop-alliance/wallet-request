@@ -38,7 +38,7 @@ import {
   typeArray
 } from '@interop/data-integrity-core/guards'
 import { CONTEXT_URL_V1 as APP_CONNECT_CONTEXT_URL } from 'byoe-context'
-import { documentLoader } from './composeVp.js'
+import { documentLoader } from './documentLoader.js'
 import type { IAppConnectApp } from './types.js'
 
 /**
