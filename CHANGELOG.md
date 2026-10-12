@@ -1,5 +1,11 @@
 # @interop/wallet-request Changelog
 
+## 0.5.2 - TBD
+
+### Changed
+
+- Update to latest di core and jsigs.
+
 ## 0.5.1 - 2026-10-06
 
 ### Added
