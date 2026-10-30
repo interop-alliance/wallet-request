@@ -12,7 +12,8 @@
   `serializedBaseServerUrl`, which is `@interop/was-client`'s
   `canonicalBaseServerUrl`: an absolute http(s) URL with no query string,
   fragment, userinfo, or empty path segment, serialized with one trailing slash
-  (WR-4). `@interop/was-client` is a new dependency.
+  (WR-4). `@interop/was-client` is a new dependency, consumed through its
+  dependency-free `paths/layout` subpath (WR-5).
 - **BREAKING**: `parsedAbsoluteUrl` is no longer exported. Its only caller was
   the `AppConnectQuery` `appUrl` validator, which now parses inline.
 

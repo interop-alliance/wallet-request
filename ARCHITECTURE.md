@@ -52,7 +52,7 @@ layer 3:                     parse            (log, classify, types)
                              matching         (types, classify,
                                                 queryPredicates)
                              onboarding       (queryPredicates, types;
-                                                @interop/was-client/paths)
+                                                @interop/was-client/paths/layout)
                              ephemeralExchange (log, types)
 layer 4:                     composeVp        (presentationSuite, classify,
                                                 queryPredicates, documentLoader,
@@ -172,16 +172,18 @@ which wallet is asking.
    `appConnectRequestOf`).
 4. **The onboarding `baseServerUrl` validator is the deliberate asymmetric
    mirror.** `onboarding.ts`'s `serializedBaseServerUrl` is
-   `@interop/was-client`'s `canonicalBaseServerUrl` (the `paths` subpath), the
-   rule the enrollee's `WasClient` constructor applies to the same value: it
-   checks the scheme (must be `http:` or `https:`), refuses a query string, a
-   fragment, userinfo, and an empty path segment, supplies the trailing slash,
-   and carries no origin check, since an exchange has no attested requesting
-   origin to compare against; `appConnectRequestOf` checks the origin and no
-   scheme. The rule is not re-stated here, so a base the inviter publishes is
-   one the enrollee's client accepts. Whether the query's `did` resolves under
-   the base is not checked here: the did:webvh inverse is wallet-core's, and so
-   is any comparison of the two.
+   `@interop/was-client`'s `canonicalBaseServerUrl`, imported from its
+   `paths/layout` subpath (the dependency-free part of `paths`, so the root
+   entry here loads neither `@interop/storage-core` nor `@interop/zcap` for this
+   one check), the rule the enrollee's `WasClient` constructor applies to the
+   same value: it checks the scheme (must be `http:` or `https:`), refuses a
+   query string, a fragment, userinfo, and an empty path segment, supplies the
+   trailing slash, and carries no origin check, since an exchange has no
+   attested requesting origin to compare against; `appConnectRequestOf` checks
+   the origin and no scheme. The rule is not re-stated here, so a base the
+   inviter publishes is one the enrollee's client accepts. Whether the query's
+   `did` resolves under the base is not checked here: the did:webvh inverse is
+   wallet-core's, and so is any comparison of the two.
 5. **One mental model per exchange.** A `WalletOnboardingQuery` refuses to mix
    with `QueryByExample`, standalone capability queries, or an
    `AppConnectQuery`; `appConnectRequestOf` refuses the mixture from its own

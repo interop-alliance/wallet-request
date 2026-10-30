@@ -217,3 +217,44 @@ mounted at an origin root, and the full mount prefix otherwise. `spaceId` leaves
 because the DID carries it.
 
 ---
+
+### WR-5: The root entry pays for was-client's `paths` graph to validate one URL
+
+- status: done (2026-10-30)
+- priority: low
+- labels: onboarding, dependencies, import-weight
+- touches:
+  - was-client: WCL-149 (done 2026-10-30; `@interop/was-client/paths/layout`,
+    the dependency-free part of `./paths` carrying `canonicalBaseServerUrl`,
+    ships in was-client 0.103.0 and is named in its ARCHITECTURE.md)
+  - this repo's ARCHITECTURE.md: updated in this item (the `onboarding.ts` edge
+    in the module graph and invariant 4 name `paths/layout`)
+- acceptance:
+  - [x] Importing this package's root entry under plain Node ESM no longer loads
+        `@interop/storage-core` or `@interop/zcap` on behalf of
+        `serializedBaseServerUrl`
+  - [x] `onboarding.ts` imports `canonicalBaseServerUrl` from
+        `@interop/was-client/paths/layout` (one rule, not a local copy), and the
+        dependency range names a was-client that has it (0.103.0 or later)
+  - [x] ARCHITECTURE.md names the subpath consumed and why it is the light one
+
+Context: WR-4 made `onboarding.ts` import `canonicalBaseServerUrl` from
+`@interop/was-client/paths`, so that the base server URL an inviter publishes is
+validated by the same rule the enrollee's `WasClient` constructor applies. That
+subpath is a leaf in was-client's export map and does not load the client
+itself, but its own graph (`internal/paths`, `internal/reserved`,
+`internal/rootCapability`, `errors`) imports `@interop/storage-core` for the
+reserved-id lists and problem types, and `@interop/zcap` for the root-capability
+helpers. was-client declares `sideEffects: false`, so a bundler shakes those
+away, but under plain Node ESM the whole graph loads on first import of this
+package's root entry, and every root consumer pays it whether or not it ever
+composes or classifies a `WalletOnboardingQuery`. The `./matching` leaf is
+unaffected: it does not import `onboarding.ts`.
+
+Re-stating the rule locally is not an option (one rule, owned upstream). The
+upstream half is done: was-client's WCL-149 (2026-10-30) split the layout
+grammar out as `./paths/layout`, whose static closure holds no external package.
+What remains here is to import from that subpath instead of `./paths` once
+was-client 0.103.0 is published, and to update the module-graph note. Filed from
+the /simplify pass of 2026-10-30 as a skipped efficiency finding;
+discovered-from: WR-4.

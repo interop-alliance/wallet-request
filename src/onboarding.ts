@@ -30,7 +30,7 @@
  * no capability requests) and refuses, rather than degrading into a partial
  * generic flow.
  */
-import { canonicalBaseServerUrl } from '@interop/was-client/paths'
+import { canonicalBaseServerUrl } from '@interop/was-client/paths/layout'
 
 import { exclusiveQueryOf } from './queryPredicates.js'
 import type {
