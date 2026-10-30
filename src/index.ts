@@ -15,8 +15,9 @@
  *   deep matcher and the type/issuer matcher).
  * - `onboarding` is the `WalletOnboardingQuery` transport vocabulary: the
  *   inviter's compose helper and the enrollee's classification, over a query
- *   carrying the account pointer (did:webvh id, `spaceId`, `host`) and the
- *   account controller did:key (the response envelope itself lives in
+ *   carrying the account pointer (the did:webvh id, with the base server URL
+ *   as an optional convenience) and the account controller did:key (the
+ *   response envelope itself lives in
  *   `@interop/wallet-core`'s `enrollment` subpath, beside the connect code it
  *   carries).
  * - `appKey` is the App Connect app-key credential module: the wire constants,

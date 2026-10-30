@@ -41,7 +41,12 @@ Request exchange: everything between "the user scanned or pasted something" and
   store-time refusal policy.
 - **The `WalletOnboardingQuery` transport vocabulary** -- `onboarding.ts`: the
   inviter's compose helper and the enrollee's classification, over a query
-  carrying the account pointer and controller.
+  carrying the account's did:webvh `did`, the account `controller` did:key, and
+  an optional `baseServerUrl`. The DID alone locates the account (it resolves to
+  its log, its Space URL and its base server URL); the base is a convenience
+  that saves the reader one inverse, serialized by `@interop/was-client`'s
+  canonical base server URL rule so the inviter publishes only what the
+  enrollee's client accepts. Whether the two agree is not checked here.
 - **Exchange clients** -- `exchangeClient.ts` (VC-API, fetch-injectable),
   `interactionUrl.ts` / `interactionRequest.ts` (VCALM interaction URLs),
   `ephemeralExchange.ts` (the requester's side of a WAS server's ephemeral

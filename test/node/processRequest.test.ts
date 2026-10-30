@@ -108,9 +108,8 @@ describe('processRequest', () => {
   it('refuses a WalletOnboardingQuery instead of answering it as empty', async () => {
     const presentationSigner = await makePresentationSigner()
     const onboarding = queryOfType('WalletOnboardingQuery', {
-      host: 'https://was.example',
-      did: 'did:key:z6Mk',
-      spaceId: 'urn:uuid:1',
+      did: 'did:webvh:QmScid:was.example:space:1:id',
+      baseServerUrl: 'https://was.example/',
       controller: 'did:key:z6Mk'
     })
     await expect(

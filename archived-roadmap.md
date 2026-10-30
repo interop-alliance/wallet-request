@@ -170,3 +170,50 @@ with raw developer-facing errors before any handler runs.
 Re-homed from wallet-core's roadmap (WC-74) on 2026-09-09.
 
 ---
+
+### WR-4: `WalletOnboardingQuery` carries the account DID, with the base server URL as an optional convenience
+
+- status: done (2026-10-29)
+- priority: medium
+- labels: onboarding, wire-contract, breaking
+- discovered-from: WCL-140 (was-client, 2026-10-28); re-scoped 2026-10-29 to
+  was-client decision 0003, which superseded 0002
+- blocked-by: WC-307 (wallet-core's port, whose `{ did, spaceUrl? }` pointer and
+  DID inverse this query is read into)
+- acceptance:
+  - [x] `WalletOnboardingQuery` and the request shape
+        `walletOnboardingRequestOf` builds carry `did` and an optional
+        `baseServerUrl`, and no longer have `host` or `spaceId` (was-client
+        decision 0003 rule 7, 2026-10-29). The member name `baseServerUrl`
+        matches the spec's "base server URL" and the was-client constructor
+        option
+  - [x] `onboarding.ts` validates `baseServerUrl` the way it validates `host`
+        today (an absolute http(s) URL; a missing trailing slash is accepted and
+        serialized with one, as the client does) and the predicate in
+        `queryPredicates.ts` follows; a query whose `did` does not resolve under
+        the given base is a mismatch the reader reports, not a value the reader
+        trusts
+  - [x] `ephemeralExchange.ts` and its tests build and read the new shape;
+        README documents it and says the base is a convenience (the DID alone
+        locates the account; the base saves the reader one inverse)
+
+The one consumer site in this package is `ephemeralExchange.ts`. On
+implementation (2026-10-29) it turned out to be generic over the stored request
+and to name the query only in its header comment and an opaque test fixture, so
+the shape change touched `onboarding.ts`, `types.ts`, their tests, and the
+`processRequest` fixture.
+
+was-client decision 0003 (2026-10-29,
+`decisions/0003-server-layout-is-fixed-under-a-base-server-url.md` in
+was-client) superseded 0002 before this repo ported to it. The spec now fixes
+the server-level layout under one base server URL (`{base}service`,
+`{base}spaces/`, `{base}space/{space_id}/`), the client is built from
+`{ baseServerUrl }`, and a did:webvh minted by wallet-core encodes the base's
+path segments, so the DID resolves to its log, its Space URL and its base with
+nothing else stored. The onboarding query therefore carries the DID as the
+pointer. The base rides along only so a reader can build its client without
+first inverting the DID; it is the same value `host` held when the server is
+mounted at an origin root, and the full mount prefix otherwise. `spaceId` leaves
+because the DID carries it.
+
+---

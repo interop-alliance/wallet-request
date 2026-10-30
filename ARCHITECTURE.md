@@ -51,7 +51,8 @@ layer 3:                     parse            (log, classify, types)
                              presentationSuite (classify, types)
                              matching         (types, classify,
                                                 queryPredicates)
-                             onboarding       (queryPredicates, types)
+                             onboarding       (queryPredicates, types;
+                                                @interop/was-client/paths)
                              ephemeralExchange (log, types)
 layer 4:                     composeVp        (presentationSuite, classify,
                                                 queryPredicates, documentLoader,
@@ -75,7 +76,7 @@ root barrel:                 index.ts re-exports every module, plus
 | `types.ts`              | The VPR vocabulary re-exported from `@interop/data-integrity-core`'s `/vpr` and `/guards` subpaths, plus the request-local types: CHAPI event shapes, the VC-API exchange reply shape, the classified-request profile, and the injection-seam types `PresentationSigner` / `FetchLike` / `RequestProcessors` |
 | `log.ts`                | The logging port: a local `Logger` type, `setLogger`, and a console fallback prefixed `[wallet-request]`                                                                                                                                                                                                     |
 | `documentLoader.ts`     | The shared JSON-LD document loader: the security contexts plus the bundled App Connect context (see "The document loader" below)                                                                                                                                                                             |
-| `queryPredicates.ts`    | Import-free helpers shared by the classifiers: `isZcapQuery`, the exclusive-query-type set, and `parsedAbsoluteUrl`, the parse-and-no-fragment core every URL validator layers on top of                                                                                                                     |
+| `queryPredicates.ts`    | Import-free helpers shared by the classifiers: `isZcapQuery` and the exclusive-query-type set                                                                                                                                                                                                                |
 | `classify.ts`           | Turns a CHAPI event or a VPR's queries into typed requests; `appConnectRequestOf` validates the `AppConnectQuery`'s `app.appUrl` against the attested requesting origin                                                                                                                                      |
 | `parse.ts`              | Turns deep links and JSON into typed wallet-API messages                                                                                                                                                                                                                                                     |
 | `presentationSuite.ts`  | Cryptosuite negotiation for the response VP                                                                                                                                                                                                                                                                  |
@@ -169,12 +170,18 @@ which wallet is asking.
    attested requesting origin. An opaque origin serializes as `"null"` and is
    refused rather than compared as same-origin with itself (`classify.ts`'s
    `appConnectRequestOf`).
-4. **The onboarding `host` validator is the deliberate asymmetric mirror.**
-   `onboarding.ts`'s `serializedOnboardingHost` checks the scheme (must be
-   `http:` or `https:`) and carries no origin check, since an exchange has no
-   attested requesting origin to compare against; `appConnectRequestOf` checks
-   the origin and no scheme. Both run over the one shared parse-and-no-fragment
-   core, `parsedAbsoluteUrl` in `queryPredicates.ts`.
+4. **The onboarding `baseServerUrl` validator is the deliberate asymmetric
+   mirror.** `onboarding.ts`'s `serializedBaseServerUrl` is
+   `@interop/was-client`'s `canonicalBaseServerUrl` (the `paths` subpath), the
+   rule the enrollee's `WasClient` constructor applies to the same value: it
+   checks the scheme (must be `http:` or `https:`), refuses a query string, a
+   fragment, userinfo, and an empty path segment, supplies the trailing slash,
+   and carries no origin check, since an exchange has no attested requesting
+   origin to compare against; `appConnectRequestOf` checks the origin and no
+   scheme. The rule is not re-stated here, so a base the inviter publishes is
+   one the enrollee's client accepts. Whether the query's `did` resolves under
+   the base is not checked here: the did:webvh inverse is wallet-core's, and so
+   is any comparison of the two.
 5. **One mental model per exchange.** A `WalletOnboardingQuery` refuses to mix
    with `QueryByExample`, standalone capability queries, or an
    `AppConnectQuery`; `appConnectRequestOf` refuses the mixture from its own
@@ -329,11 +336,13 @@ in code, tests, docs, commit messages, and conversation.
   against the attested requesting origin.
 - **App key** -- the App Connect app-key credential, scoped to (user, origin,
   `appUrl`); wallet-minted rather than imported. Owned by `appKey.ts`.
-- **`WalletOnboardingQuery`** -- the VPR query type carrying an account pointer
-  (did:webvh `did`, `spaceId`, `host`) and the account controller did:key, so a
-  fresh wallet can join an existing account over an exchange. Owned by
-  `onboarding.ts`; the response envelope it carries back lives in
-  `@interop/wallet-core`'s `enrollment` subpath.
+- **`WalletOnboardingQuery`** -- the VPR query type carrying the account pointer
+  (the did:webvh `did`), the account controller did:key, and optionally the
+  `baseServerUrl` the DID resolves under, so a fresh wallet can join an existing
+  account over an exchange. The base is a convenience: the DID alone locates the
+  account, the base saves the reader one inverse. Owned by `onboarding.ts`; the
+  response envelope it carries back lives in `@interop/wallet-core`'s
+  `enrollment` subpath.
 - **Interaction URL** -- a VCALM `interaction:` URL, the indirection that
   resolves to a protocols map naming how to reach an exchange.
   `interactionUrl.ts` resolves it; `interactionRequest.ts`'s

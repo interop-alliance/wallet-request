@@ -215,12 +215,14 @@ export type IAppConnectRequest = {
  * the enrollee needs to find the account, so no secret is required of the
  * person joining:
  *
- * - `did` -- the account's stable did:webvh id, whose log is world-readable
- *   and is where the enrollee verifies its own approval.
- * - `spaceId` and `host` -- where the account lives (the WAS server base URL
- *   and the Space on it); together with `did` these are exactly the account
- *   pointer a keyring record carries (keyring's `AccountPointer` shape), so
- *   the inviter passes its session pointer straight in.
+ * - `did` -- the account's stable did:webvh id, the account pointer. Its log
+ *   is world-readable and is where the enrollee verifies its own approval,
+ *   and the id itself encodes the server's path segments, so the DID alone
+ *   resolves to the log, the Space URL and the base server URL.
+ * - `baseServerUrl` -- optional, the PWS base server URL the DID resolves
+ *   under, in `@interop/was-client`'s canonical form. A convenience only: it
+ *   saves the reader one DID inverse, and whether the two agree is not checked
+ *   by this package.
  * - `controller` -- the account controller did:key, what the enrollee's own
  *   profile link stores once it has joined.
  *
@@ -234,22 +236,20 @@ export type IAppConnectRequest = {
  */
 export type IWalletOnboardingQuery = {
   type: 'WalletOnboardingQuery'
-  host: string
   did: string
-  spaceId: string
+  baseServerUrl?: string
   controller: string
 }
 
 /**
  * A wallet-onboarding request as classified and validated by
- * `walletOnboardingRequestOf`: the account's did:webvh `did`, its `spaceId`,
- * the `host` already in serialized URL form (the three together being the
- * account pointer), and the account controller did:key.
+ * `walletOnboardingRequestOf`: the account's did:webvh `did` (the account
+ * pointer), the account controller did:key, and the `baseServerUrl` when the
+ * query carried one, already in serialized URL form (ending in one slash).
  */
 export type IWalletOnboardingRequest = {
-  host: string
   did: string
-  spaceId: string
+  baseServerUrl?: string
   controller: string
 }
 

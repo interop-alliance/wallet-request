@@ -35,7 +35,6 @@ import { typeArray } from '@interop/data-integrity-core/guards'
 import {
   exclusiveQueryOf,
   isZcapQuery,
-  parsedAbsoluteUrl,
   singleQueryOfType,
   toArray
 } from './queryPredicates.js'
@@ -275,9 +274,8 @@ export function zcapQueriesOf(queries: IVPRQuery[]): ICapabilityQueryDetail[] {
  * `file:`, a custom scheme) has an opaque origin, which serializes as the
  * string `"null"` and is same-origin only with itself, so two such strings
  * being equal proves nothing; such an `appUrl` is refused as not same-origin
- * rather than compared. The wallet-onboarding `host` validator is the
- * mirror: it checks the scheme and no origin, since an exchange attests
- * none.
+ * rather than compared. The wallet-onboarding `baseServerUrl` validator
+ * checks shape and no origin, since an exchange attests none.
  *
  * @param options {object}
  * @param options.appUrl {string} - The request's `app.appUrl`.
@@ -291,13 +289,23 @@ export function serializedAppUrl({
   appUrl: string
   origin: string
 }): string {
-  const url = parsedAbsoluteUrl({
-    value: appUrl,
-    notAbsoluteMessage: `An AppConnectQuery "appUrl" must be an absolute URL (got "${appUrl}").`,
-    fragmentMessage: `An AppConnectQuery "appUrl" must not carry a fragment (got "${appUrl}").`
-  })
-  // Read from the serialization, as the fragment check is: a bare trailing
-  // "?" sets an empty query that `url.search` reports as ''.
+  let url: URL
+  try {
+    url = new URL(appUrl)
+  } catch (err) {
+    throw new Error(
+      `An AppConnectQuery "appUrl" must be an absolute URL (got "${appUrl}").`,
+      { cause: err }
+    )
+  }
+  // Read from the serialization rather than `url.hash` / `url.search`: a bare
+  // trailing "#" or "?" sets an empty (non-null) fragment or query that those
+  // report as '', and a percent-encoded `%23` never appears as `#`.
+  if (url.href.includes('#')) {
+    throw new Error(
+      `An AppConnectQuery "appUrl" must not carry a fragment (got "${appUrl}").`
+    )
+  }
   if (url.href.includes('?')) {
     throw new Error(
       `An AppConnectQuery "appUrl" must not carry a query (got "${appUrl}").`

@@ -1,5 +1,21 @@
 # @interop/wallet-request Changelog
 
+## 0.6.0 - TBD
+
+### Changed
+
+- **BREAKING**: `WalletOnboardingQuery` carries `did`, `controller`, and an
+  optional `baseServerUrl`; `host` and `spaceId` are gone (the DID resolves to
+  the Space and its base server URL on its own).
+  `composeWalletOnboardingRequest` takes `{ did, baseServerUrl?, controller }`
+  instead of a `pointer`, and `serializedOnboardingHost` is now
+  `serializedBaseServerUrl`, which is `@interop/was-client`'s
+  `canonicalBaseServerUrl`: an absolute http(s) URL with no query string,
+  fragment, userinfo, or empty path segment, serialized with one trailing slash
+  (WR-4). `@interop/was-client` is a new dependency.
+- **BREAKING**: `parsedAbsoluteUrl` is no longer exported. Its only caller was
+  the `AppConnectQuery` `appUrl` validator, which now parses inline.
+
 ## 0.5.2 - 2026-10-12
 
 ### Changed

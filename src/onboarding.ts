@@ -12,10 +12,10 @@
  * Vocabulary only -- the enrollment ceremony itself is untouched, and nothing
  * secret crosses the channel: connect-code public halves travel one way, the
  * account pointer and controller the other. The query carries the account's
- * did:webvh `did`, its `spaceId` and `host` (together the account pointer),
- * and the account controller did:key, so the enrollee locates the account
- * without being asked for the account passphrase -- which a passkey-only
- * account does not even have. The inviter already holds all four values.
+ * did:webvh `did` (the pointer: the DID alone resolves to the account's log,
+ * its Space URL and its server's base server URL), the account controller
+ * did:key, and optionally the `baseServerUrl` as a convenience that saves the
+ * reader one DID inverse. The inviter already holds all three values.
  *
  * The query names the account but authorizes nothing. A holder of the QR or
  * capability URL gains a world-readable DID log and nothing else; every act on
@@ -30,7 +30,9 @@
  * no capability requests) and refuses, rather than degrading into a partial
  * generic flow.
  */
-import { exclusiveQueryOf, parsedAbsoluteUrl } from './queryPredicates.js'
+import { canonicalBaseServerUrl } from '@interop/was-client/paths'
+
+import { exclusiveQueryOf } from './queryPredicates.js'
 import type {
   IVPRDetails,
   IVPRQuery,
@@ -52,74 +54,74 @@ function isWebvhDid(did: string | undefined): did is string {
 }
 
 /**
- * Validates a wallet-onboarding `host` and returns its serialized form. The
- * value must parse as an absolute URL and must be `http:` or `https:` (it is
- * dereferenced as a WAS server base URL) and must not carry a fragment; any
- * violation throws. Compose and classification share this one rule, so the
- * form the inviter publishes is the form the enrollee resolves, and
- * URLs differing only in a default port, percent-encoding case, or dot
- * segments do not name distinct servers.
+ * Validates a wallet-onboarding `baseServerUrl` and returns its serialized
+ * form: `@interop/was-client`'s canonical base server URL, the rule the
+ * enrollee's `WasClient` constructor applies to the same value. Compose and
+ * classification share that one rule, so a base the inviter publishes is one
+ * the enrollee's client accepts, and URLs differing only in a default port,
+ * percent-encoding case, dot segments, or the trailing slash do not name
+ * distinct servers. A violation throws, naming the field and carrying
+ * was-client's refusal as the message and the `cause`.
  *
- * There is no attested origin to compare against here -- an exchange has no
- * CHAPI requesting origin -- so unlike an App Connect `appUrl` the check is
- * shape only, and the scheme check is what stands in for it: the value is
- * fetched, so only a scheme the fetch can dereference is a host. The two
- * validators are deliberately asymmetric -- this one checks the scheme and no
- * origin, `serializedAppUrl` checks the origin and no scheme -- over the one
- * shared parse-and-no-fragment core. The channel's trust comes from the
- * point-to-point fingerprint comparison of the enrollment ceremony, not from
- * this value.
+ * There is no attested origin to compare against here (an exchange has no
+ * CHAPI requesting origin), so unlike an App Connect `appUrl` the check is
+ * shape only. The channel's trust comes from the point-to-point fingerprint
+ * comparison of the enrollment ceremony, not from this value. Whether the
+ * `did` actually resolves under this base is not checked here either: the
+ * did:webvh inverse is wallet-core's, and so is any comparison of the two.
  *
  * @param options {object}
- * @param options.host {string} - The query's `host`.
- * @returns {string} The parsed URL's serialization.
+ * @param options.baseServerUrl {string} - The query's `baseServerUrl`.
+ * @returns {string} The canonical base server URL, ending in one slash.
  */
-export function serializedOnboardingHost({ host }: { host: string }): string {
-  const url = parsedAbsoluteUrl({
-    value: host,
-    notAbsoluteMessage: `A WalletOnboardingQuery "host" must be an absolute URL (got "${host}").`,
-    fragmentMessage:
-      `A WalletOnboardingQuery "host" must not carry a fragment (got ` +
-      `"${host}").`
-  })
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+export function serializedBaseServerUrl({
+  baseServerUrl
+}: {
+  baseServerUrl: string
+}): string {
+  try {
+    return canonicalBaseServerUrl(baseServerUrl)
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
     throw new Error(
-      `A WalletOnboardingQuery "host" must be an http(s) URL (got "${host}").`
+      'A WalletOnboardingQuery "baseServerUrl" is not a valid base server ' +
+        `URL (got "${baseServerUrl}"): ${reason}`,
+      { cause: err }
     )
   }
-  return url.href
 }
 
 /**
  * Validates the account members a `WalletOnboardingQuery` carries and returns
- * them in the classified form: the account's did:webvh `did`, its `spaceId`,
- * the serialized `host`, and the account controller did:key. Compose and
- * classification share this one rule, so the two sides cannot drift.
+ * them in the classified form: the account's did:webvh `did`, the account
+ * controller did:key, and the serialized `baseServerUrl` when one is given.
+ * Compose and classification share this one rule, so the two sides cannot
+ * drift.
  *
  * The `did` must be a did:webvh id: only a promoted account (one whose Space
  * controller is its published did:webvh) has the world-readable log the
  * enrollee verifies its approval from. The `controller` check is shape only
  * (a non-empty `did:key:` string) -- it is a discovery value the enrollee
  * stores, and the channel's trust comes from the ceremony's confirmation-code
- * comparison, not from any member of the query.
+ * comparison, not from any member of the query. A `baseServerUrl` is
+ * optional: the DID alone locates the account, and the base only saves the
+ * reader one inverse.
  *
  * @param options {object}
  * @param options.did {string | undefined}         the account's did:webvh id.
- * @param options.spaceId {string | undefined}     the account's Space id.
- * @param options.host {string | undefined}        the WAS server base URL.
+ * @param [options.baseServerUrl] {string | undefined}  the PWS base server
+ *   URL the DID resolves under.
  * @param options.controller {string | undefined}  the account controller
  *   did:key.
  * @returns {IWalletOnboardingRequest}
  */
 export function validatedOnboardingAccount({
   did,
-  spaceId,
-  host,
+  baseServerUrl,
   controller
 }: {
   did?: string | undefined
-  spaceId?: string | undefined
-  host?: string | undefined
+  baseServerUrl?: string | undefined
   controller?: string | undefined
 }): IWalletOnboardingRequest {
   if (!isWebvhDid(did)) {
@@ -129,25 +131,23 @@ export function validatedOnboardingAccount({
         'another wallet.'
     )
   }
-  if (typeof spaceId !== 'string' || spaceId.length === 0) {
-    throw new Error(
-      'A WalletOnboardingQuery "spaceId" must be a non-empty string (got ' +
-        `"${String(spaceId)}").`
-    )
-  }
-  if (typeof host !== 'string') {
-    throw new Error('A WalletOnboardingQuery is missing its host.')
-  }
   if (typeof controller !== 'string' || !controller.startsWith('did:key:')) {
     throw new Error(
       'A WalletOnboardingQuery "controller" must be a did:key string (got ' +
         `"${String(controller)}").`
     )
   }
+  if (baseServerUrl !== undefined && typeof baseServerUrl !== 'string') {
+    throw new Error(
+      'A WalletOnboardingQuery "baseServerUrl", when present, must be a ' +
+        `string (got "${String(baseServerUrl)}").`
+    )
+  }
   return {
-    host: serializedOnboardingHost({ host }),
     did,
-    spaceId,
+    ...(baseServerUrl === undefined
+      ? {}
+      : { baseServerUrl: serializedBaseServerUrl({ baseServerUrl }) }),
     controller
   }
 }
@@ -156,26 +156,29 @@ export function validatedOnboardingAccount({
  * INVITER: the VPR details body to store on the ephemeral exchange -- one
  * `WalletOnboardingQuery` and nothing else, since the query is one mental
  * model per exchange. The account members are validated by
- * {@link validatedOnboardingAccount} and the `host` is stored in its
- * serialized form ({@link serializedOnboardingHost}).
+ * {@link validatedOnboardingAccount} and the `baseServerUrl`, when given, is
+ * stored in its serialized form ({@link serializedBaseServerUrl}).
  *
  * @param options {object}
- * @param options.pointer {object}  the account pointer (keyring's
- *   `AccountPointer` shape: the inviter passes its session pointer straight
- *   in), whose `did` must already be the promoted did:webvh id.
+ * @param options.did {string}  the account's promoted did:webvh id.
+ * @param [options.baseServerUrl] {string}  the PWS base server URL the DID
+ *   resolves under; a convenience for the reader, omitted when the inviter
+ *   does not hold it.
  * @param options.controller {string}  the account controller did:key.
  * @returns {IVPRDetails}
  */
 export function composeWalletOnboardingRequest({
-  pointer,
+  did,
+  baseServerUrl,
   controller
 }: {
-  pointer: { did?: string; spaceId: string; host: string }
+  did: string
+  baseServerUrl?: string
   controller: string
 }): IVPRDetails {
   const query: IWalletOnboardingQuery = {
     type: 'WalletOnboardingQuery',
-    ...validatedOnboardingAccount({ ...pointer, controller })
+    ...validatedOnboardingAccount({ did, baseServerUrl, controller })
   }
   return { query: [query as unknown as IVPRQuery] }
 }
@@ -188,9 +191,10 @@ export function composeWalletOnboardingRequest({
  * `AppConnectQuery` (a screen that asks the person to connect a wallet must
  * not simultaneously ask them to share credentials or grant capabilities).
  * Its account members must satisfy {@link validatedOnboardingAccount} (so a
- * query missing the pointer or the controller is malformed), and its `host` is
- * rewritten to its serialized form. Violations throw; classification-time
- * callers surface the throw as a malformed-request state.
+ * query missing the `did` or the `controller` is malformed), and its
+ * `baseServerUrl`, when present, is rewritten to its serialized form.
+ * Violations throw; classification-time callers surface the throw as a
+ * malformed-request state.
  *
  * @param options {object}
  * @param options.queries {IVPRQuery[]}
@@ -208,6 +212,6 @@ export function walletOnboardingRequestOf({
   if (onboardingQuery === null) {
     return null
   }
-  const { host, did, spaceId, controller } = onboardingQuery
-  return validatedOnboardingAccount({ host, did, spaceId, controller })
+  const { did, baseServerUrl, controller } = onboardingQuery
+  return validatedOnboardingAccount({ did, baseServerUrl, controller })
 }

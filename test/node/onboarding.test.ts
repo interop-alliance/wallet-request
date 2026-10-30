@@ -10,176 +10,177 @@ import {
   classifyRequest,
   composeWalletOnboardingRequest,
   queriesOf,
-  serializedOnboardingHost,
+  serializedBaseServerUrl,
   walletOnboardingRequestOf
 } from '../../src/index.js'
 import type { IVPRQuery } from '../../src/index.js'
 import { appConnectRequestOf } from '../../src/index.js'
 
 /** The account the inviter is onboarding another wallet onto. */
-const ACCOUNT_DID = 'did:webvh:QmZ4tDuvesekSs4qM5JBGwjJHfxpTBEjLE:was.example'
-const SPACE_ID = 'urn:uuid:8f2c1d9a-3b6e-4a1f-9d0c-52b7e6a1c4d3'
+const ACCOUNT_DID =
+  'did:webvh:QmZ4tDuvesekSs4qM5JBGwjJHfxpTBEjLE:was.example:space:8f2c1d9a:id'
 const CONTROLLER = 'did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX'
+const BASE_SERVER_URL = 'https://was.example'
 
-const POINTER = {
+/**
+ * The query as the wire delivers it without a base: the key absent, not
+ * present with an undefined value (JSON cannot carry the latter).
+ */
+const QUERY_WITHOUT_BASE = {
+  type: 'WalletOnboardingQuery',
   did: ACCOUNT_DID,
-  spaceId: SPACE_ID,
-  host: 'https://was.example'
-}
+  controller: CONTROLLER
+} as never as IVPRQuery
 
 const onboardingQuery = (members: Record<string, unknown>) =>
   ({
-    type: 'WalletOnboardingQuery',
-    did: ACCOUNT_DID,
-    spaceId: SPACE_ID,
-    controller: CONTROLLER,
-    host: 'https://was.example',
+    ...QUERY_WITHOUT_BASE,
+    baseServerUrl: BASE_SERVER_URL,
     ...members
   }) as never as IVPRQuery
+
+/**
+ * Values the enrollee's `WasClient` constructor refuses, so the inviter must
+ * too: relative or unparseable, a non-http(s) scheme, a fragment or query
+ * string (a bare `#` or `?` counts), userinfo, an empty path segment.
+ */
+const REFUSED_BASE_SERVER_URLS = [
+  '/storage',
+  'not a url',
+  'ftp://was.example',
+  'ws://was.example/',
+  'chrome-extension://abcdef/',
+  'https://was.example/#top',
+  'https://was.example/#',
+  'https://was.example/?a=b',
+  'https://was.example/?',
+  'https://user:pw@was.example/',
+  'https://user@was.example/storage',
+  'https://was.example/a//b'
+]
+const REFUSED_BASE_SERVER_URL = /"baseServerUrl" is not a valid base server URL/
 
 describe('composeWalletOnboardingRequest', () => {
   it('composes a single-query VPR body', () => {
     expect(
       composeWalletOnboardingRequest({
-        pointer: POINTER,
+        did: ACCOUNT_DID,
+        baseServerUrl: BASE_SERVER_URL,
         controller: CONTROLLER
       })
     ).toEqual({
       query: [
         {
           type: 'WalletOnboardingQuery',
-          host: 'https://was.example/',
           did: ACCOUNT_DID,
-          spaceId: SPACE_ID,
+          baseServerUrl: 'https://was.example/',
           controller: CONTROLLER
         }
       ]
     })
   })
 
-  it('stores the serialized host', () => {
+  it('omits baseServerUrl when the inviter passes none', () => {
+    expect(
+      composeWalletOnboardingRequest({
+        did: ACCOUNT_DID,
+        controller: CONTROLLER
+      })
+    ).toEqual({
+      query: [
+        {
+          type: 'WalletOnboardingQuery',
+          did: ACCOUNT_DID,
+          controller: CONTROLLER
+        }
+      ]
+    })
+  })
+
+  it('stores the serialized base server URL', () => {
     const request = composeWalletOnboardingRequest({
-      pointer: { ...POINTER, host: 'https://was.example:443/a/../storage' },
+      did: ACCOUNT_DID,
+      baseServerUrl: 'https://was.example:443/a/../storage',
       controller: CONTROLLER
     })
     expect(queriesOf(request)).toEqual([
       {
         type: 'WalletOnboardingQuery',
-        host: 'https://was.example/storage',
         did: ACCOUNT_DID,
-        spaceId: SPACE_ID,
+        baseServerUrl: 'https://was.example/storage/',
         controller: CONTROLLER
       }
     ])
   })
 
-  it('round-trips the pointer and controller through classification', () => {
+  it('round-trips the account members through classification', () => {
     const request = composeWalletOnboardingRequest({
-      pointer: POINTER,
+      did: ACCOUNT_DID,
+      baseServerUrl: BASE_SERVER_URL,
       controller: CONTROLLER
     })
     expect(walletOnboardingRequestOf({ queries: queriesOf(request) })).toEqual({
-      host: 'https://was.example/',
       did: ACCOUNT_DID,
-      spaceId: SPACE_ID,
+      baseServerUrl: 'https://was.example/',
       controller: CONTROLLER
     })
   })
 
-  it('throws on a pointer carrying no did, or a non-webvh one', () => {
-    for (const did of [undefined, '', CONTROLLER, 'did:web:was.example']) {
+  it('throws on an empty or non-webvh did', () => {
+    for (const did of ['', CONTROLLER, 'did:web:was.example']) {
       expect(() =>
-        composeWalletOnboardingRequest({
-          pointer: { ...POINTER, did },
-          controller: CONTROLLER
-        })
+        composeWalletOnboardingRequest({ did, controller: CONTROLLER })
       ).toThrow(/must be the account's did:webvh id/)
     }
-  })
-
-  it('throws on an empty spaceId', () => {
-    expect(() =>
-      composeWalletOnboardingRequest({
-        pointer: { ...POINTER, spaceId: '' },
-        controller: CONTROLLER
-      })
-    ).toThrow(/"spaceId" must be a non-empty string/)
   })
 
   it('throws on a missing or non-did:key controller', () => {
     for (const controller of ['', 'did:webvh:abc:was.example', 'nonsense']) {
       expect(() =>
-        composeWalletOnboardingRequest({ pointer: POINTER, controller })
+        composeWalletOnboardingRequest({ did: ACCOUNT_DID, controller })
       ).toThrow(/"controller" must be a did:key string/)
     }
   })
 
-  it('throws on a relative host', () => {
+  it('refuses a base server URL the enrollee client would refuse', () => {
     expect(() =>
       composeWalletOnboardingRequest({
-        pointer: { ...POINTER, host: '/storage' },
+        did: ACCOUNT_DID,
+        baseServerUrl: 'https://was.example/a//b',
         controller: CONTROLLER
       })
-    ).toThrow(/must be an absolute URL/)
-  })
-
-  it('throws on a non-http(s) host', () => {
-    expect(() =>
-      composeWalletOnboardingRequest({
-        pointer: { ...POINTER, host: 'ftp://was.example' },
-        controller: CONTROLLER
-      })
-    ).toThrow(/must be an http\(s\) URL/)
-  })
-
-  it('throws on a host carrying a fragment', () => {
-    for (const host of ['https://was.example/#frag', 'https://was.example/#']) {
-      expect(() =>
-        composeWalletOnboardingRequest({
-          pointer: { ...POINTER, host },
-          controller: CONTROLLER
-        })
-      ).toThrow(/must not carry a fragment/)
-    }
+    ).toThrow(REFUSED_BASE_SERVER_URL)
   })
 })
 
-describe('serializedOnboardingHost', () => {
-  it('normalizes the default port, dot segments, and the empty path', () => {
-    expect(serializedOnboardingHost({ host: 'https://was.example' })).toBe(
-      'https://was.example/'
-    )
-    expect(
-      serializedOnboardingHost({ host: 'http://was.example:80/a/./b/../c' })
-    ).toBe('http://was.example/a/c')
+describe('serializedBaseServerUrl', () => {
+  it.each([
+    ['https://was.example', 'https://was.example/'],
+    ['http://was.example:80/a/./b/../c', 'http://was.example/a/c/'],
+    ['https://was.example/storage', 'https://was.example/storage/'],
+    ['https://was.example/storage///', 'https://was.example/storage/']
+  ])('normalizes %s to %s', (baseServerUrl, canonical) => {
+    expect(serializedBaseServerUrl({ baseServerUrl })).toBe(canonical)
   })
 
-  it('rejects a relative or unparseable host', () => {
-    expect(() => serializedOnboardingHost({ host: '/storage' })).toThrow(
-      /absolute URL/
-    )
-    expect(() => serializedOnboardingHost({ host: 'not a url' })).toThrow(
-      /absolute URL/
-    )
+  it('refuses every value the enrollee client would refuse', () => {
+    // Shape only, with no origin to check: an exchange attests none.
+    for (const baseServerUrl of REFUSED_BASE_SERVER_URLS) {
+      expect(() => serializedBaseServerUrl({ baseServerUrl })).toThrow(
+        REFUSED_BASE_SERVER_URL
+      )
+    }
   })
 
-  it('rejects a host carrying a fragment, including a bare "#"', () => {
+  it('carries the was-client refusal as the message and the cause', () => {
     expect(() =>
-      serializedOnboardingHost({ host: 'https://was.example/#top' })
-    ).toThrow(/fragment/)
-    expect(() =>
-      serializedOnboardingHost({ host: 'https://was.example/#' })
-    ).toThrow(/fragment/)
-  })
-
-  it('checks the scheme and no origin: a non-http(s) host is refused', () => {
-    // The mirror of serializedAppUrl, which checks the origin and no scheme.
-    expect(() =>
-      serializedOnboardingHost({ host: 'ws://was.example/' })
-    ).toThrow(/http\(s\)/)
-    expect(() =>
-      serializedOnboardingHost({ host: 'chrome-extension://abcdef/' })
-    ).toThrow(/http\(s\)/)
+      serializedBaseServerUrl({ baseServerUrl: 'https://was.example/a//b' })
+    ).toThrow(
+      expect.objectContaining({
+        message: expect.stringMatching(/empty segment/),
+        cause: expect.any(Error)
+      })
+    )
   })
 })
 
@@ -190,30 +191,24 @@ describe('walletOnboardingRequestOf', () => {
     ).toBeNull()
   })
 
-  it('classifies a valid query, serializing the host', () => {
+  it('classifies a valid query, serializing the base server URL', () => {
     expect(
       walletOnboardingRequestOf({
-        queries: [onboardingQuery({ host: 'https://was.example:443/storage' })]
+        queries: [
+          onboardingQuery({ baseServerUrl: 'https://was.example:443/storage' })
+        ]
       })
     ).toEqual({
-      host: 'https://was.example/storage',
       did: ACCOUNT_DID,
-      spaceId: SPACE_ID,
+      baseServerUrl: 'https://was.example/storage/',
       controller: CONTROLLER
     })
   })
 
-  it('throws on a legacy host-only query', () => {
-    expect(() =>
-      walletOnboardingRequestOf({
-        queries: [
-          {
-            type: 'WalletOnboardingQuery',
-            host: 'https://was.example'
-          } as never as IVPRQuery
-        ]
-      })
-    ).toThrow(/must be the account's did:webvh id/)
+  it('classifies a query carrying no base server URL', () => {
+    expect(
+      walletOnboardingRequestOf({ queries: [QUERY_WITHOUT_BASE] })
+    ).toEqual({ did: ACCOUNT_DID, controller: CONTROLLER })
   })
 
   it('throws on a missing or non-webvh did', () => {
@@ -221,14 +216,6 @@ describe('walletOnboardingRequestOf', () => {
       expect(() =>
         walletOnboardingRequestOf({ queries: [onboardingQuery({ did })] })
       ).toThrow(/must be the account's did:webvh id/)
-    }
-  })
-
-  it('throws on a missing or empty spaceId', () => {
-    for (const spaceId of [undefined, null, '', 42]) {
-      expect(() =>
-        walletOnboardingRequestOf({ queries: [onboardingQuery({ spaceId })] })
-      ).toThrow(/"spaceId" must be a non-empty string/)
     }
   })
 
@@ -249,24 +236,24 @@ describe('walletOnboardingRequestOf', () => {
     ).toThrow(/More than one WalletOnboardingQuery/)
   })
 
-  it('throws on a missing or non-string host', () => {
-    for (const host of [undefined, null, 42, { href: 'https://was.example' }]) {
+  it('throws on a present but non-string base server URL', () => {
+    for (const baseServerUrl of [null, 42, { href: 'https://was.example' }]) {
       expect(() =>
-        walletOnboardingRequestOf({ queries: [onboardingQuery({ host })] })
-      ).toThrow(/missing its host/)
+        walletOnboardingRequestOf({
+          queries: [onboardingQuery({ baseServerUrl })]
+        })
+      ).toThrow(/"baseServerUrl", when present, must be a string/)
     }
   })
 
-  it('throws on a host violating the URL rules', () => {
-    for (const host of [
-      '/storage',
-      'ftp://was.example',
-      'https://was.example/#frag'
-    ]) {
-      expect(() =>
-        walletOnboardingRequestOf({ queries: [onboardingQuery({ host })] })
-      ).toThrow()
-    }
+  it('throws on a base server URL the enrollee client would refuse', () => {
+    expect(() =>
+      walletOnboardingRequestOf({
+        queries: [
+          onboardingQuery({ baseServerUrl: 'https://was.example/a//b' })
+        ]
+      })
+    ).toThrow(REFUSED_BASE_SERVER_URL)
   })
 
   it('throws when combined with another consent-bearing query type', () => {
@@ -311,7 +298,8 @@ describe('a wallet that predates the query type', () => {
   it('finds nothing it can satisfy, and so refuses rather than degrading', () => {
     const profile = classifyRequest(
       composeWalletOnboardingRequest({
-        pointer: POINTER,
+        did: ACCOUNT_DID,
+        baseServerUrl: BASE_SERVER_URL,
         controller: CONTROLLER
       })
     )
