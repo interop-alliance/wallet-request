@@ -32,7 +32,7 @@ const CHALLENGE = 'nonce-1'
 function detailFor(controller: string): ICapabilityQueryDetail {
   return {
     controller,
-    invocationTarget: 'https://was.example/space/abc/',
+    invocationTarget: 'https://pws.example/space/abc/',
     allowedAction: ['GET']
   }
 }

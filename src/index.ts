@@ -28,7 +28,7 @@
  *   `interactionUrl` resolves VCALM `interaction:` URLs; `interactionRequest`
  *   composes the two into `openInteractionRequest`, the answering wallet's
  *   one-call entry point for an interaction URL.
- * - `ephemeralExchange` is the requester's side of a WAS server's ephemeral
+ * - `ephemeralExchange` is the requester's side of a PWS server's ephemeral
  *   exchange: create one carrying a VPR, poll it (with an optional deadline)
  *   until the wallet answers. `capabilityRequest` composes the zcap-only VPR
  *   a requester stores on it.

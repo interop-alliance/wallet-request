@@ -22,8 +22,8 @@ import {
   pollEphemeralExchange
 } from '../../src/ephemeralExchange.js'
 
-const SERVER_URL = 'https://was.example'
-const EXCHANGE_URL = 'https://was.example/workflows/ephemeral/exchanges/abc123'
+const SERVER_URL = 'https://pws.example'
+const EXCHANGE_URL = 'https://pws.example/workflows/ephemeral/exchanges/abc123'
 const REQUEST = { query: [{ type: 'WalletOnboardingQuery' }] }
 
 /**
@@ -72,7 +72,7 @@ describe('createEphemeralExchange', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://was.example/workflows/ephemeral/exchanges',
+      'https://pws.example/workflows/ephemeral/exchanges',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -100,10 +100,10 @@ describe('createEphemeralExchange', () => {
     })
 
     expect(created.exchangeUrl).toBe(
-      'https://was.example/workflows/ephemeral/exchanges/abc123'
+      'https://pws.example/workflows/ephemeral/exchanges/abc123'
     )
     expect(created.interactionUrl).toBe(
-      'https://was.example/workflows/ephemeral/exchanges/abc123/protocols?iuv=1'
+      'https://pws.example/workflows/ephemeral/exchanges/abc123/protocols?iuv=1'
     )
   })
 
@@ -146,13 +146,13 @@ describe('createEphemeralExchange', () => {
     )
 
     await createEphemeralExchange({
-      serverUrl: 'https://was.example/',
+      serverUrl: 'https://pws.example/',
       request: REQUEST,
       fetch: fetchMock
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://was.example/workflows/ephemeral/exchanges',
+      'https://pws.example/workflows/ephemeral/exchanges',
       expect.anything()
     )
   })

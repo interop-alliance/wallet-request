@@ -8,24 +8,28 @@
  * instead of throwing, and the handler dispatch refuses a kind this wallet did
  * not implement.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { isDIDAuthOnlyRequest } from '../../src/parse.js'
 import {
   classifyWalletInput,
   handleWalletInput
 } from '../../src/walletInput.js'
-import type { WalletInputRecognizers } from '../../src/walletInput.js'
+import type {
+  WalletInputHandlers,
+  WalletInputRecognizers
+} from '../../src/walletInput.js'
 
 const schemes = ['dccrequest://', 'https://lcw.app/']
 
 /**
- * Stand-ins for the predicates `@interop/wallet-core` owns: the `was-link`
+ * Stand-ins for the predicates `@interop/wallet-core` owns: the `pws-link`
  * payload's structural check and the connect-code prefix check.
  */
 const recognizers: WalletInputRecognizers = {
-  isWasLink: text => {
+  isPwsLink: text => {
     try {
-      return (JSON.parse(text) as { t?: unknown }).t === 'was-link'
+      return (JSON.parse(text) as { t?: unknown }).t === 'pws-link'
     } catch {
       return false
     }
@@ -37,12 +41,12 @@ const DOUBLE_DID_AUTH_VPR =
   '{"verifiablePresentationRequest":{"query":' +
   '[{"type":"DIDAuthentication"},{"type":"DIDAuthentication"}]}}'
 
-const WAS_LINK =
-  '{"v":1,"t":"was-link","serverUrl":"https://was.example","secret":"Y29ycmVjdCBob3JzZQ"}'
+const PWS_LINK =
+  '{"v":1,"t":"pws-link","baseServerUrl":"https://pws.example/","secret":"Y29ycmVjdCBob3JzZQ"}'
 
 describe('classifyWalletInput', () => {
-  it('recognizes a was-link connection payload ahead of raw JSON', () => {
-    expect(classifyWalletInput(WAS_LINK, { recognizers }).kind).toBe('was-link')
+  it('recognizes a pws-link connection payload ahead of raw JSON', () => {
+    expect(classifyWalletInput(PWS_LINK, { recognizers }).kind).toBe('pws-link')
   })
 
   it('leaves unrelated JSON to the credentials branch', () => {
@@ -63,13 +67,13 @@ describe('classifyWalletInput', () => {
   })
 
   it('never matches an account grammar without its recognizer', () => {
-    expect(classifyWalletInput(WAS_LINK).kind).toBe('credentials')
+    expect(classifyWalletInput(PWS_LINK).kind).toBe('credentials')
     expect(classifyWalletInput('freewallet-connect:abc').kind).toBe(
       'credentials'
     )
     expect(
       classifyWalletInput('freewallet-connect:abc', {
-        recognizers: { isWasLink: recognizers.isWasLink }
+        recognizers: { isPwsLink: recognizers.isPwsLink }
       }).kind
     ).toBe('credentials')
   })
@@ -196,6 +200,75 @@ describe('classifyWalletInput', () => {
   })
 })
 
+describe('wiring warnings', () => {
+  let warn: MockInstance<typeof console.warn>
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    ['pwsLink', 'handlers.pwsLink is set but recognizers.isPwsLink is not'],
+    [
+      'connectCode',
+      'handlers.connectCode is set but recognizers.isConnectCode is not'
+    ]
+  ])('warns when the %s handler has no recognizer', async (name, message) => {
+    await handleWalletInput({
+      text: 'not a url at all',
+      handlers: { [name]: () => name, credentials: () => 'credentials' }
+    })
+
+    expect(warn).toHaveBeenCalledWith('[wallet-request]', message)
+  })
+
+  it('stays quiet when every handler has its recognizer', async () => {
+    await handleWalletInput({
+      text: 'not a url at all',
+      recognizers,
+      handlers: {
+        pwsLink: () => 'pws',
+        connectCode: () => 'connect',
+        credentials: () => 'credentials'
+      }
+    })
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('warns about a recognizer name it does not read', () => {
+    const misnamed = { isPostcard: () => true } as WalletInputRecognizers
+
+    const input = classifyWalletInput(PWS_LINK, { recognizers: misnamed })
+
+    expect(input.kind).toBe('credentials')
+    expect(warn).toHaveBeenCalledWith(
+      '[wallet-request]',
+      'Ignoring an unknown wallet input name',
+      { option: 'recognizers', name: 'isPostcard' }
+    )
+  })
+
+  it('warns about a handler name it does not read', async () => {
+    const misnamed = {
+      postcard: () => 'postcard',
+      credentials: () => 'credentials'
+    } as WalletInputHandlers<string>
+
+    await handleWalletInput({ text: 'not a url at all', handlers: misnamed })
+
+    expect(warn).toHaveBeenCalledWith(
+      '[wallet-request]',
+      'Ignoring an unknown wallet input name',
+      { option: 'handlers', name: 'postcard' }
+    )
+  })
+})
+
 describe('handleWalletInput', () => {
   it('dispatches to the matching handler', async () => {
     const result = await handleWalletInput({
@@ -207,6 +280,18 @@ describe('handleWalletInput', () => {
       }
     })
     expect(result).toBe('connect:freewallet-connect:abc')
+  })
+
+  it('dispatches a pws-link payload to its handler', async () => {
+    const result = await handleWalletInput({
+      text: PWS_LINK,
+      recognizers,
+      handlers: {
+        pwsLink: ({ text }) => `pws:${text}`,
+        credentials: () => 'credentials'
+      }
+    })
+    expect(result).toBe(`pws:${PWS_LINK}`)
   })
 
   it('dispatches a malformed request to its handler', async () => {

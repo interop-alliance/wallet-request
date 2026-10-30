@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 /**
- * The requester's half of an ephemeral exchange on a WAS server: creating an
+ * The requester's half of an ephemeral exchange on a PWS server: creating an
  * exchange that carries a Verifiable Presentation Request as its stored
  * request, and polling that exchange until the answering wallet posts its
  * response. Generic over what the request asks for -- a wallet's onboarding
@@ -131,7 +131,7 @@ function normalizedServerUrl({ serverUrl }: { serverUrl: string }): string {
  * trailing slash still yields a well-formed link.
  *
  * @param options {object}
- * @param options.serverUrl {string}   the WAS server base URL
+ * @param options.serverUrl {string}   the PWS server base URL
  * @param options.request {unknown}   the VPR details to store
  * @param [options.fetch] {FetchLike}
  * @returns {Promise<{ exchangeUrl: string, interactionUrl: string }>}

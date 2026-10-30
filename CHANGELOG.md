@@ -1,5 +1,22 @@
 # @interop/wallet-request Changelog
 
+## 0.7.0 - TBD
+
+### Changed
+
+- **BREAKING**: The wallet-input classifier takes the Portable Web Spaces names,
+  with no alias kept: `WalletInputRecognizers.isWasLink` is now `isPwsLink`, the
+  `wasLink` handler is now `pwsLink`, and the `was-link` input kind is now
+  `pws-link` (WR-6).
+- **BREAKING**: The `@interop/was-client` dependency is replaced by an
+  `@interop/pws-client` peer dependency (`>=0.105.0 <1.0.0`), still consumed
+  through its `paths/layout` subpath (WR-6).
+
+### Added
+
+- `classifyWalletInput` and `handleWalletInput` log a warning for a recognizer
+  or handler name they do not read (WR-6).
+
 ## 0.6.0 - 2026-10-30
 
 ### Changed

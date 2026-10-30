@@ -20,7 +20,7 @@
  * The query names the account but authorizes nothing. A holder of the QR or
  * capability URL gains a world-readable DID log and nothing else; every act on
  * the Space still requires zcaps they do not have, and the rendezvous server
- * that sees the pointer is the same WAS server that hosts the Space and
+ * that sees the pointer is the same PWS server that hosts the Space and
  * already knows the account DID. Injection by a URL holder remains the real
  * threat, and remains covered by the ceremony's fingerprint / confirmation-
  * code comparison: nothing is authorized before that human check.
@@ -30,7 +30,7 @@
  * no capability requests) and refuses, rather than degrading into a partial
  * generic flow.
  */
-import { canonicalBaseServerUrl } from '@interop/was-client/paths/layout'
+import { canonicalBaseServerUrl } from '@interop/pws-client/paths/layout'
 
 import { exclusiveQueryOf } from './queryPredicates.js'
 import type {
@@ -55,13 +55,13 @@ function isWebvhDid(did: string | undefined): did is string {
 
 /**
  * Validates a wallet-onboarding `baseServerUrl` and returns its serialized
- * form: `@interop/was-client`'s canonical base server URL, the rule the
- * enrollee's `WasClient` constructor applies to the same value. Compose and
+ * form: `@interop/pws-client`'s canonical base server URL, the rule the
+ * enrollee's `PwsClient` constructor applies to the same value. Compose and
  * classification share that one rule, so a base the inviter publishes is one
  * the enrollee's client accepts, and URLs differing only in a default port,
  * percent-encoding case, dot segments, or the trailing slash do not name
  * distinct servers. A violation throws, naming the field and carrying
- * was-client's refusal as the message and the `cause`.
+ * pws-client's refusal as the message and the `cause`.
  *
  * There is no attested origin to compare against here (an exchange has no
  * CHAPI requesting origin), so unlike an App Connect `appUrl` the check is

@@ -220,7 +220,7 @@ export type IAppConnectRequest = {
  *   and the id itself encodes the server's path segments, so the DID alone
  *   resolves to the log, the Space URL and the base server URL.
  * - `baseServerUrl` -- optional, the PWS base server URL the DID resolves
- *   under, in `@interop/was-client`'s canonical form. A convenience only: it
+ *   under, in `@interop/pws-client`'s canonical form. A convenience only: it
  *   saves the reader one DID inverse, and whether the two agree is not checked
  *   by this package.
  * - `controller` -- the account controller did:key, what the enrollee's own

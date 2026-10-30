@@ -258,3 +258,46 @@ What remains here is to import from that subpath instead of `./paths` once
 was-client 0.103.0 is published, and to update the module-graph note. Filed from
 the /simplify pass of 2026-10-30 as a skipped efficiency finding;
 discovered-from: WR-4.
+
+### WR-6: Follow the Portable Web Spaces rename
+
+- status: done (2026-10-30)
+- priority: low
+- labels: pws, deps, breaking
+- discovered-from: dcw DCW-109 (2026-10-30)
+- touches:
+  - this repo: updated in this item (`package.json`, `src/onboarding.ts`,
+    `src/walletInput.ts`, `test/node/walletInput.test.ts`, ARCHITECTURE.md; also
+    AGENTS.md, README.md, ROADMAP.md, `test/node/onboarding.test.ts`, the
+    `pws.example` test fixtures, and the WAS doc comments in
+    `src/ephemeralExchange.ts`, `src/index.ts`, and `src/types.ts`)
+  - dcw: DCW-112 (`app/screens/AddScreen/AddScreen.tsx`, `package.json`);
+    ARCHITECTURE.md and AGENTS.md name none of the renamed items
+  - freewallet: FW-700 (`src/lib/resolveWalletInput.ts`, `package.json`,
+    ARCHITECTURE.md, AGENTS.md)
+  - app-connect-spec: updated in this item (the wallet-core row of the parties
+    registry in AGENTS.md); the encrypted-collections and PWS registries do not
+    name this package
+  - unaffected: was-react (uses none of the classifier API and already depends
+    on `@interop/pws-client`, which satisfies the new peer range)
+  - unaffected: did-cli-typescript (uses none of the classifier API and already
+    depends on `@interop/pws-client`, which satisfies the new peer range)
+- acceptance:
+  - [x] `package.json` moves `@interop/was-client` to `@interop/pws-client`, and
+        `onboarding.ts` imports `canonicalBaseServerUrl` from
+        `@interop/pws-client/paths/layout`
+  - [x] `WalletInputRecognizers.isWasLink` becomes `isPwsLink`, the `wasLink`
+        handler becomes `pwsLink`, and the `was-link` classification kind
+        becomes `pws-link`, with no alias kept
+  - [x] The doc comments name wallet-core's `isPwsLinkPayload` in place of
+        `isWasLinkPayload`, and ARCHITECTURE.md names the new subpath
+
+Context: this package still carries the old Wallet Attached Storage names after
+the rest of the ecosystem moved to Portable Web Spaces. It depends on
+`@interop/was-client` for one function, so every wallet that takes it installs a
+retired client package beside `@interop/pws-client`. Its input classifier still
+offers `isWasLink`, `wasLink`, and `was-link`, while the predicate wallets
+inject there is already wallet-core's `isPwsLinkPayload`, so both wallets write
+`isWasLink: isPwsLinkPayload`. The renames are code-only and the classifier's
+kinds reach no wire format, but they break consumers, so dcw and freewallet
+follow in the same release train.

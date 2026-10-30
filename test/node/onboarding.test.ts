@@ -18,9 +18,9 @@ import { appConnectRequestOf } from '../../src/index.js'
 
 /** The account the inviter is onboarding another wallet onto. */
 const ACCOUNT_DID =
-  'did:webvh:QmZ4tDuvesekSs4qM5JBGwjJHfxpTBEjLE:was.example:space:8f2c1d9a:id'
+  'did:webvh:QmZ4tDuvesekSs4qM5JBGwjJHfxpTBEjLE:pws.example:space:8f2c1d9a:id'
 const CONTROLLER = 'did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX'
-const BASE_SERVER_URL = 'https://was.example'
+const BASE_SERVER_URL = 'https://pws.example'
 
 /**
  * The query as the wire delivers it without a base: the key absent, not
@@ -40,23 +40,23 @@ const onboardingQuery = (members: Record<string, unknown>) =>
   }) as never as IVPRQuery
 
 /**
- * Values the enrollee's `WasClient` constructor refuses, so the inviter must
+ * Values the enrollee's `PwsClient` constructor refuses, so the inviter must
  * too: relative or unparseable, a non-http(s) scheme, a fragment or query
  * string (a bare `#` or `?` counts), userinfo, an empty path segment.
  */
 const REFUSED_BASE_SERVER_URLS = [
   '/storage',
   'not a url',
-  'ftp://was.example',
-  'ws://was.example/',
+  'ftp://pws.example',
+  'ws://pws.example/',
   'chrome-extension://abcdef/',
-  'https://was.example/#top',
-  'https://was.example/#',
-  'https://was.example/?a=b',
-  'https://was.example/?',
-  'https://user:pw@was.example/',
-  'https://user@was.example/storage',
-  'https://was.example/a//b'
+  'https://pws.example/#top',
+  'https://pws.example/#',
+  'https://pws.example/?a=b',
+  'https://pws.example/?',
+  'https://user:pw@pws.example/',
+  'https://user@pws.example/storage',
+  'https://pws.example/a//b'
 ]
 const REFUSED_BASE_SERVER_URL = /"baseServerUrl" is not a valid base server URL/
 
@@ -73,7 +73,7 @@ describe('composeWalletOnboardingRequest', () => {
         {
           type: 'WalletOnboardingQuery',
           did: ACCOUNT_DID,
-          baseServerUrl: 'https://was.example/',
+          baseServerUrl: 'https://pws.example/',
           controller: CONTROLLER
         }
       ]
@@ -100,14 +100,14 @@ describe('composeWalletOnboardingRequest', () => {
   it('stores the serialized base server URL', () => {
     const request = composeWalletOnboardingRequest({
       did: ACCOUNT_DID,
-      baseServerUrl: 'https://was.example:443/a/../storage',
+      baseServerUrl: 'https://pws.example:443/a/../storage',
       controller: CONTROLLER
     })
     expect(queriesOf(request)).toEqual([
       {
         type: 'WalletOnboardingQuery',
         did: ACCOUNT_DID,
-        baseServerUrl: 'https://was.example/storage/',
+        baseServerUrl: 'https://pws.example/storage/',
         controller: CONTROLLER
       }
     ])
@@ -121,13 +121,13 @@ describe('composeWalletOnboardingRequest', () => {
     })
     expect(walletOnboardingRequestOf({ queries: queriesOf(request) })).toEqual({
       did: ACCOUNT_DID,
-      baseServerUrl: 'https://was.example/',
+      baseServerUrl: 'https://pws.example/',
       controller: CONTROLLER
     })
   })
 
   it('throws on an empty or non-webvh did', () => {
-    for (const did of ['', CONTROLLER, 'did:web:was.example']) {
+    for (const did of ['', CONTROLLER, 'did:web:pws.example']) {
       expect(() =>
         composeWalletOnboardingRequest({ did, controller: CONTROLLER })
       ).toThrow(/must be the account's did:webvh id/)
@@ -135,7 +135,7 @@ describe('composeWalletOnboardingRequest', () => {
   })
 
   it('throws on a missing or non-did:key controller', () => {
-    for (const controller of ['', 'did:webvh:abc:was.example', 'nonsense']) {
+    for (const controller of ['', 'did:webvh:abc:pws.example', 'nonsense']) {
       expect(() =>
         composeWalletOnboardingRequest({ did: ACCOUNT_DID, controller })
       ).toThrow(/"controller" must be a did:key string/)
@@ -146,7 +146,7 @@ describe('composeWalletOnboardingRequest', () => {
     expect(() =>
       composeWalletOnboardingRequest({
         did: ACCOUNT_DID,
-        baseServerUrl: 'https://was.example/a//b',
+        baseServerUrl: 'https://pws.example/a//b',
         controller: CONTROLLER
       })
     ).toThrow(REFUSED_BASE_SERVER_URL)
@@ -155,10 +155,10 @@ describe('composeWalletOnboardingRequest', () => {
 
 describe('serializedBaseServerUrl', () => {
   it.each([
-    ['https://was.example', 'https://was.example/'],
-    ['http://was.example:80/a/./b/../c', 'http://was.example/a/c/'],
-    ['https://was.example/storage', 'https://was.example/storage/'],
-    ['https://was.example/storage///', 'https://was.example/storage/']
+    ['https://pws.example', 'https://pws.example/'],
+    ['http://pws.example:80/a/./b/../c', 'http://pws.example/a/c/'],
+    ['https://pws.example/storage', 'https://pws.example/storage/'],
+    ['https://pws.example/storage///', 'https://pws.example/storage/']
   ])('normalizes %s to %s', (baseServerUrl, canonical) => {
     expect(serializedBaseServerUrl({ baseServerUrl })).toBe(canonical)
   })
@@ -172,9 +172,9 @@ describe('serializedBaseServerUrl', () => {
     }
   })
 
-  it('carries the was-client refusal as the message and the cause', () => {
+  it('carries the pws-client refusal as the message and the cause', () => {
     expect(() =>
-      serializedBaseServerUrl({ baseServerUrl: 'https://was.example/a//b' })
+      serializedBaseServerUrl({ baseServerUrl: 'https://pws.example/a//b' })
     ).toThrow(
       expect.objectContaining({
         message: expect.stringMatching(/empty segment/),
@@ -195,12 +195,12 @@ describe('walletOnboardingRequestOf', () => {
     expect(
       walletOnboardingRequestOf({
         queries: [
-          onboardingQuery({ baseServerUrl: 'https://was.example:443/storage' })
+          onboardingQuery({ baseServerUrl: 'https://pws.example:443/storage' })
         ]
       })
     ).toEqual({
       did: ACCOUNT_DID,
-      baseServerUrl: 'https://was.example/storage/',
+      baseServerUrl: 'https://pws.example/storage/',
       controller: CONTROLLER
     })
   })
@@ -237,7 +237,7 @@ describe('walletOnboardingRequestOf', () => {
   })
 
   it('throws on a present but non-string base server URL', () => {
-    for (const baseServerUrl of [null, 42, { href: 'https://was.example' }]) {
+    for (const baseServerUrl of [null, 42, { href: 'https://pws.example' }]) {
       expect(() =>
         walletOnboardingRequestOf({
           queries: [onboardingQuery({ baseServerUrl })]
@@ -250,7 +250,7 @@ describe('walletOnboardingRequestOf', () => {
     expect(() =>
       walletOnboardingRequestOf({
         queries: [
-          onboardingQuery({ baseServerUrl: 'https://was.example/a//b' })
+          onboardingQuery({ baseServerUrl: 'https://pws.example/a//b' })
         ]
       })
     ).toThrow(REFUSED_BASE_SERVER_URL)
@@ -262,7 +262,7 @@ describe('walletOnboardingRequestOf', () => {
       { type: 'QueryByExample', credentialQuery: [] } as never as IVPRQuery,
       {
         type: 'AuthorizationCapabilityQuery',
-        capabilityQuery: [{ invocationTarget: 'https://was.example/space/1' }]
+        capabilityQuery: [{ invocationTarget: 'https://pws.example/space/1' }]
       } as never as IVPRQuery,
       {
         type: 'AppConnectQuery',

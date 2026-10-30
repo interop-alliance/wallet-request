@@ -44,12 +44,12 @@ Request exchange: everything between "the user scanned or pasted something" and
   carrying the account's did:webvh `did`, the account `controller` did:key, and
   an optional `baseServerUrl`. The DID alone locates the account (it resolves to
   its log, its Space URL and its base server URL); the base is a convenience
-  that saves the reader one inverse, serialized by `@interop/was-client`'s
+  that saves the reader one inverse, serialized by `@interop/pws-client`'s
   canonical base server URL rule so the inviter publishes only what the
   enrollee's client accepts. Whether the two agree is not checked here.
 - **Exchange clients** -- `exchangeClient.ts` (VC-API, fetch-injectable),
   `interactionUrl.ts` / `interactionRequest.ts` (VCALM interaction URLs),
-  `ephemeralExchange.ts` (the requester's side of a WAS server's ephemeral
+  `ephemeralExchange.ts` (the requester's side of a PWS server's ephemeral
   exchange), and `capabilityRequest.ts` (the zcap-only VPR a requester stores on
   one, plus the signing and verification of a connection request's proof).
 - **`processRequest.ts`** -- the pure request-to-response pipeline; consent and
@@ -61,13 +61,13 @@ subpath. The Verifiable Presentation Request vocabulary is owned by
 and re-exported from the root here, so a consumer imports one package.
 
 Two grammars this package classifies belong to a wallet's account convention
-rather than to this package: the `was-link` wallet-connection payload and the
+rather than to this package: the `pws-link` wallet-connection payload and the
 connect-code prefix are defined in `@interop/wallet-core` (`space` and
 `enrollment`), beside the ceremonies that consume them. `classifyWalletInput`
 and `handleWalletInput` take each as an injected `recognizers` predicate instead
-of importing the convention. A wallet on a WAS account wires `isWasLinkPayload`
+of importing the convention. A wallet on a PWS account wires `isPwsLinkPayload`
 (from `@interop/wallet-core/space`) and `isConnectCode` (from
-`@interop/wallet-core/enrollment`); a wallet holding no WAS account passes
+`@interop/wallet-core/enrollment`); a wallet holding no PWS account passes
 neither, and those branches never match. This package depends on nothing in
 `@interop/wallet-core`, and `@interop/wallet-core` imports nothing from here.
 
@@ -102,8 +102,11 @@ neither, and those branches never match. This package depends on nothing in
 To install via PNPM:
 
 ```
-pnpm install @interop/wallet-request
+pnpm install @interop/wallet-request @interop/pws-client
 ```
+
+`@interop/pws-client` is a peer dependency, so a wallet keeps one copy of the
+client.
 
 ### Development
 
@@ -128,19 +131,19 @@ import {
 import { deepMatch } from '@interop/wallet-request/matching'
 ```
 
-A wallet on a WAS account wires the two account-convention recognizers from
+A wallet on a PWS account wires the two account-convention recognizers from
 `@interop/wallet-core`:
 
 ```ts
 import { handleWalletInput } from '@interop/wallet-request'
-import { isWasLinkPayload } from '@interop/wallet-core/space'
+import { isPwsLinkPayload } from '@interop/wallet-core/space'
 import { isConnectCode } from '@interop/wallet-core/enrollment'
 
 await handleWalletInput({
   text: scannedText,
-  recognizers: { isWasLink: isWasLinkPayload, isConnectCode },
+  recognizers: { isPwsLink: isPwsLinkPayload, isConnectCode },
   handlers: {
-    wasLink: input => joinWasAccount(input.text),
+    pwsLink: input => joinPwsAccount(input.text),
     connectCode: input => approveEnrollment(input.text),
     credentials: input => resolveCredentialsInput(input.text)
     // ... the remaining kinds an app implements

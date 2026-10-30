@@ -52,7 +52,7 @@ layer 3:                     parse            (log, classify, types)
                              matching         (types, classify,
                                                 queryPredicates)
                              onboarding       (queryPredicates, types;
-                                                @interop/was-client/paths/layout)
+                                                @interop/pws-client/paths/layout)
                              ephemeralExchange (log, types)
 layer 4:                     composeVp        (presentationSuite, classify,
                                                 queryPredicates, documentLoader,
@@ -83,7 +83,7 @@ root barrel:                 index.ts re-exports every module, plus
 | `matching.ts`           | The QueryByExample matchers: DCW's deep matcher and freewallet's type/issuer matcher, shipped side by side                                                                                                                                                                                                   |
 | `capabilityRequest.ts`  | `composeCapabilityRequest`: the zcap-only VPR a requester stores on an ephemeral exchange; `signCapabilityRequest` / `verifyCapabilityRequest`: the connection request's proof by the named `controller` (see "The connection request proof" below)                                                          |
 | `onboarding.ts`         | The `WalletOnboardingQuery` transport vocabulary: compose and classification, plus the did:webvh `did` shape check                                                                                                                                                                                           |
-| `ephemeralExchange.ts`  | The requester's side of a WAS server's ephemeral exchange: create one carrying a VPR, then poll until the wallet answers                                                                                                                                                                                     |
+| `ephemeralExchange.ts`  | The requester's side of a PWS server's ephemeral exchange: create one carrying a VPR, then poll until the wallet answers                                                                                                                                                                                     |
 | `composeVp.ts`          | Builds the response VP, embedding grants before signing                                                                                                                                                                                                                                                      |
 | `exchangeClient.ts`     | The VC-API exchange client over an injected `FetchLike`                                                                                                                                                                                                                                                      |
 | `interactionUrl.ts`     | VCALM `interaction:` URL resolution                                                                                                                                                                                                                                                                          |
@@ -99,7 +99,7 @@ root barrel:                 index.ts re-exports every module, plus
 something": an ordered discrimination over eight input kinds, most-specific
 first, because the grammars are subsets of one another:
 
-1. `was-link` (non-URL JSON blob)
+1. `pws-link` (non-URL JSON blob)
 2. `connect-code` (an account convention's prefix)
 3. `legacy-request` (deep link with both `vc_request_url` and `issuer`)
 4. `interaction-url` (VCALM `interaction:` scheme or `iuv=1`)
@@ -124,8 +124,10 @@ Classification does no fetch, navigation, or storage. `handleWalletInput`
 dispatches the classified result to caller-supplied handlers; a kind with no
 handler throws `UnhandledWalletInputError` (carrying the `kind`; dispatch on
 `err.name`), so a wallet that does not implement a grammar cannot silently
-mishandle it. A `wasLink` or `connectCode` handler wired without its recognizer
-can never fire, and `handleWalletInput` logs a warning for it.
+mishandle it. A `pwsLink` or `connectCode` handler wired without its recognizer
+can never fire, and `handleWalletInput` logs a warning for it. A recognizer or
+handler name this module does not read also logs a warning, because a misnamed
+recognizer would otherwise send its input to the credentials branch.
 
 ### The wallet-core conventions the classifier recognizes
 
@@ -134,17 +136,17 @@ does not own, and the move out of `@interop/wallet-core` changed how the
 classifier reaches them.
 
 **The `recognizers` option.** `classifyWalletInput` and `handleWalletInput` no
-longer import wallet-core's connect-code prefix or `was-link` payload shape.
+longer import wallet-core's connect-code prefix or `pws-link` payload shape.
 They take an optional `recognizers: WalletInputRecognizers` argument
-(`isWasLink`, `isConnectCode`, each `(text: string) => boolean`). An absent
+(`isPwsLink`, `isConnectCode`, each `(text: string) => boolean`). An absent
 recognizer means that branch never matches, the same rule `deepLinkSchemes`
-already followed when empty. A wallet on a WAS account passes wallet-core's own
-predicates -- `isWasLinkPayload` from `@interop/wallet-core/space` and
+already followed when empty. A wallet on a PWS account passes wallet-core's own
+predicates -- `isPwsLinkPayload` from `@interop/wallet-core/space` and
 `isConnectCode` from `@interop/wallet-core/enrollment`.
 
 The reasoning: the grammar keeps its one form in the package that owns the
 ceremony consuming it, the dependency direction stays free of wallet-core in
-either direction, and a wallet holding no WAS account has no such grammar to
+either direction, and a wallet holding no PWS account has no such grammar to
 route. The rejected alternative was moving the constants into this package with
 wallet-core importing them back, which would have made wallet-core depend on
 this package.
@@ -172,10 +174,10 @@ which wallet is asking.
    `appConnectRequestOf`).
 4. **The onboarding `baseServerUrl` validator is the deliberate asymmetric
    mirror.** `onboarding.ts`'s `serializedBaseServerUrl` is
-   `@interop/was-client`'s `canonicalBaseServerUrl`, imported from its
+   `@interop/pws-client`'s `canonicalBaseServerUrl`, imported from its
    `paths/layout` subpath (the dependency-free part of `paths`, so the root
    entry here loads neither `@interop/storage-core` nor `@interop/zcap` for this
-   one check), the rule the enrollee's `WasClient` constructor applies to the
+   one check), the rule the enrollee's `PwsClient` constructor applies to the
    same value: it checks the scheme (must be `http:` or `https:`), refuses a
    query string, a fragment, userinfo, and an empty path segment, supplies the
    trailing slash, and carries no origin check, since an exchange has no
@@ -183,7 +185,9 @@ which wallet is asking.
    the origin and no scheme. The rule is not re-stated here, so a base the
    inviter publishes is one the enrollee's client accepts. Whether the query's
    `did` resolves under the base is not checked here: the did:webvh inverse is
-   wallet-core's, and so is any comparison of the two.
+   wallet-core's, and so is any comparison of the two. `@interop/pws-client` is
+   a peer dependency with wallet-core's range, so a wallet installs one copy of
+   the client.
 5. **One mental model per exchange.** A `WalletOnboardingQuery` refuses to mix
    with `QueryByExample`, standalone capability queries, or an
    `AppConnectQuery`; `appConnectRequestOf` refuses the mixture from its own
@@ -285,7 +289,7 @@ with the wallet.
 
 ## Ownership heuristics
 
-- **The connect code and its envelope, the `was-link` payload, the enrollment
+- **The connect code and its envelope, the `pws-link` payload, the enrollment
   ceremony, the onboarding invite TTL** -- `@interop/wallet-core` (`space`,
   `enrollment`). This package classifies those grammars through injected
   recognizers; it does not define them.
@@ -312,7 +316,7 @@ in code, tests, docs, commit messages, and conversation.
 - **Wallet input** -- the raw text a wallet accepts from a QR scan, a paste box,
   a file drop, or an opened deep link, before classification.
   `classifyWalletInput` turns it into one of the eight `WalletInput` kinds.
-- **The eight input kinds** -- `was-link`, `connect-code`, `legacy-request`,
+- **The eight input kinds** -- `pws-link`, `connect-code`, `legacy-request`,
   `interaction-url`, `deep-link`, `wallet-api-message`, `malformed-request`,
   `credentials`; see "The wallet-input classifier" above. Avoid: input types,
   grammars (when a bare synonym would do; "grammar" is fine when discussing the
@@ -357,7 +361,7 @@ in code, tests, docs, commit messages, and conversation.
 - **Request proof** -- the `eddsa-jcs-2022` proof the named `controller` puts on
   a connection request; produced by `signCapabilityRequest`, checked by
   `verifyCapabilityRequest`. Distinct from the response presentation's proof.
-- **Ephemeral exchange** -- a WAS server's short-lived, unauthenticated exchange
+- **Ephemeral exchange** -- a PWS server's short-lived, unauthenticated exchange
   resource: a requester creates one carrying a VPR and polls it until the wallet
   answers. `ephemeralExchange.ts` is the requester's side.
 - **Presentation suite** -- the cryptosuite negotiated for the response VP's

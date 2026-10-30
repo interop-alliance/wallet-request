@@ -15,7 +15,7 @@
  * The order is the whole design, because several grammars are subsets of
  * others. Most specific first:
  *
- * 1. **`was-link`** -- the wallet-connection QR payload, a non-URL JSON blob
+ * 1. **`pws-link`** -- the wallet-connection QR payload, a non-URL JSON blob
  *    (deliberately not a link, so no OS handler ever routes it). Checked first
  *    because it is JSON that would otherwise fall through to the credential
  *    branch.
@@ -47,12 +47,12 @@
  * produces the honest error message.
  *
  * The first two grammars are account conventions this package does not own:
- * the `was-link` payload shape and the connect-code prefix are defined by
+ * the `pws-link` payload shape and the connect-code prefix are defined by
  * `@interop/wallet-core` (`space` and `enrollment`), beside the ceremonies
  * that consume them. The classifier takes each as an injected recognizer
  * ({@link WalletInputRecognizers}) rather than importing the convention, the
  * same way it takes the app's registered link schemes: a wallet that holds no
- * WAS account has no such grammar to route, and one that does passes the
+ * PWS account has no such grammar to route, and one that does passes the
  * owning package's predicate. An absent recognizer means that branch never
  * matches, so the ordering above is preserved whichever subset is wired.
  */
@@ -72,7 +72,7 @@ import type { WalletApiMessage } from './types.js'
  * enough of it that re-parsing in the handler would be waste and drift).
  */
 export type WalletInput =
-  | { kind: 'was-link'; text: string }
+  | { kind: 'pws-link'; text: string }
   | { kind: 'connect-code'; text: string }
   | { kind: 'legacy-request'; text: string; params: Record<string, string> }
   | { kind: 'interaction-url'; text: string }
@@ -129,19 +129,56 @@ function matchesLinkPrefix({
  * The account-convention recognizers a caller injects, one per grammar the
  * classifier recognizes but does not own. Each is a predicate over the
  * trimmed input; an absent one means the branch never matches. A wallet on a
- * WAS account passes `@interop/wallet-core`'s own predicates
- * (`isWasLinkPayload` from `space`, `isConnectCode` from `enrollment`), so
+ * PWS account passes `@interop/wallet-core`'s own predicates
+ * (`isPwsLinkPayload` from `space`, `isConnectCode` from `enrollment`), so
  * the grammar keeps its one definition there.
  */
 export interface WalletInputRecognizers {
   /**
-   * Whether the text is a `was-link` wallet-connection payload.
+   * Whether the text is a `pws-link` wallet-connection payload.
    */
-  isWasLink?: (text: string) => boolean
+  isPwsLink?: (text: string) => boolean
   /**
    * Whether the text is a client-enrollment connect code.
    */
   isConnectCode?: (text: string) => boolean
+}
+
+/**
+ * The recognizer names this module reads. The `Record` type fails the build
+ * when a new recognizer goes unlisted.
+ */
+const RECOGNIZER_NAMES: Record<keyof WalletInputRecognizers, true> = {
+  isPwsLink: true,
+  isConnectCode: true
+}
+
+/**
+ * Warns about each name in an injected object that this module does not read.
+ * A misnamed recognizer or handler is otherwise silent wherever the type check
+ * does not reach: the input falls through to a later branch, which can hand a
+ * `pws-link` payload to the credentials handler.
+ *
+ * @param options {object}
+ * @param options.option {string}   the option being checked, for the log
+ * @param options.given {object}   the injected object
+ * @param options.known {Record<string, true>}   the names this module reads
+ * @returns {void}
+ */
+function warnUnknownNames({
+  option,
+  given,
+  known
+}: {
+  option: string
+  given: object
+  known: Record<string, true>
+}): void {
+  for (const name of Object.keys(given)) {
+    if (!Object.hasOwn(known, name)) {
+      log.warn('Ignoring an unknown wallet input name', { option, name })
+    }
+  }
 }
 
 /**
@@ -156,7 +193,7 @@ export interface WalletInputRecognizers {
  *   legacy-request branches never match -- a wallet with no registered links
  *   has nothing to route them to
  * @param [options.recognizers] {WalletInputRecognizers}   the account-
- *   convention predicates for the `was-link` and `connect-code` branches.
+ *   convention predicates for the `pws-link` and `connect-code` branches.
  *   Absent, neither branch ever matches
  * @returns {WalletInput}
  */
@@ -167,10 +204,15 @@ export function classifyWalletInput(
     recognizers = {}
   }: { deepLinkSchemes?: string[]; recognizers?: WalletInputRecognizers } = {}
 ): WalletInput {
+  warnUnknownNames({
+    option: 'recognizers',
+    given: recognizers,
+    known: RECOGNIZER_NAMES
+  })
   const trimmed = text.trim()
 
-  if (recognizers.isWasLink?.(trimmed)) {
-    return { kind: 'was-link', text: trimmed }
+  if (recognizers.isPwsLink?.(trimmed)) {
+    return { kind: 'pws-link', text: trimmed }
   }
   if (recognizers.isConnectCode?.(trimmed)) {
     return { kind: 'connect-code', text: trimmed }
@@ -244,7 +286,7 @@ export class UnhandledWalletInputError extends Error {
  * implement a grammar from silently doing the wrong thing with it.
  */
 export interface WalletInputHandlers<T> {
-  wasLink?: (input: { text: string }) => T | Promise<T>
+  pwsLink?: (input: { text: string }) => T | Promise<T>
   connectCode?: (input: { text: string }) => T | Promise<T>
   legacyRequest?: (input: {
     text: string
@@ -261,6 +303,21 @@ export interface WalletInputHandlers<T> {
 }
 
 /**
+ * The handler names this module reads. The `Record` type fails the build when a
+ * new handler goes unlisted.
+ */
+const HANDLER_NAMES: Record<keyof WalletInputHandlers<unknown>, true> = {
+  pwsLink: true,
+  connectCode: true,
+  legacyRequest: true,
+  interactionUrl: true,
+  deepLink: true,
+  walletApiMessage: true,
+  malformedRequest: true,
+  credentials: true
+}
+
+/**
  * Classifies input and dispatches it to the matching handler.
  *
  * @param options {object}
@@ -268,7 +325,7 @@ export interface WalletInputHandlers<T> {
  * @param [options.deepLinkSchemes] {string[]}   this app's registered link
  *   prefixes
  * @param [options.recognizers] {WalletInputRecognizers}   the account-
- *   convention predicates for the `was-link` and `connect-code` branches
+ *   convention predicates for the `pws-link` and `connect-code` branches
  * @param options.handlers {WalletInputHandlers}   the injected handlers
  * @returns {Promise<*>}   whatever the matching handler resolves to
  */
@@ -283,19 +340,24 @@ export async function handleWalletInput<T>({
   recognizers?: WalletInputRecognizers
   handlers: WalletInputHandlers<T>
 }): Promise<T> {
+  warnUnknownNames({
+    option: 'handlers',
+    given: handlers,
+    known: HANDLER_NAMES
+  })
   // A handler for a grammar this package does not own can only fire through
   // its recognizer; a handler wired without one is unreachable, which nothing
   // else would ever report.
-  if (handlers.wasLink && !recognizers?.isWasLink) {
-    log.warn('handlers.wasLink is set but recognizers.isWasLink is not')
+  if (handlers.pwsLink && !recognizers?.isPwsLink) {
+    log.warn('handlers.pwsLink is set but recognizers.isPwsLink is not')
   }
   if (handlers.connectCode && !recognizers?.isConnectCode) {
     log.warn('handlers.connectCode is set but recognizers.isConnectCode is not')
   }
   const input = classifyWalletInput(text, { deepLinkSchemes, recognizers })
   switch (input.kind) {
-    case 'was-link':
-      return dispatch({ handler: handlers.wasLink, input })
+    case 'pws-link':
+      return dispatch({ handler: handlers.pwsLink, input })
     case 'connect-code':
       return dispatch({ handler: handlers.connectCode, input })
     case 'legacy-request':

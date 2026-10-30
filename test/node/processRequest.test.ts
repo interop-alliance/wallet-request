@@ -35,7 +35,7 @@ function appConnectQuery(app: object = { name: 'Demo', appUrl: ORIGIN + '/' }) {
     capabilityQuery: {
       referenceId: 'space',
       allowedAction: ['GET'],
-      invocationTarget: 'https://was.example/space/abc/'
+      invocationTarget: 'https://pws.example/space/abc/'
     }
   })
 }
@@ -108,8 +108,8 @@ describe('processRequest', () => {
   it('refuses a WalletOnboardingQuery instead of answering it as empty', async () => {
     const presentationSigner = await makePresentationSigner()
     const onboarding = queryOfType('WalletOnboardingQuery', {
-      did: 'did:webvh:QmScid:was.example:space:1:id',
-      baseServerUrl: 'https://was.example/',
+      did: 'did:webvh:QmScid:pws.example:space:1:id',
+      baseServerUrl: 'https://pws.example/',
       controller: 'did:key:z6Mk'
     })
     await expect(
@@ -165,7 +165,7 @@ describe('processRequest', () => {
           capabilityQuery: {
             referenceId: 'space',
             allowedAction: ['GET'],
-            invocationTarget: 'https://was.example/space/abc/'
+            invocationTarget: 'https://pws.example/space/abc/'
           }
         })
       ]
@@ -193,7 +193,7 @@ describe('processRequest', () => {
             capabilityQuery: {
               referenceId: 'space',
               allowedAction: ['GET'],
-              invocationTarget: 'https://was.example/space/abc/'
+              invocationTarget: 'https://pws.example/space/abc/'
             }
           })
         ],
@@ -337,7 +337,7 @@ describe('processRequest', () => {
         {
           referenceId: 'space',
           allowedAction: ['GET'],
-          invocationTarget: 'https://was.example/space/abc/'
+          invocationTarget: 'https://pws.example/space/abc/'
         }
       ])
     })

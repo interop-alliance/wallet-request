@@ -50,7 +50,6 @@
     "@interop/jsonld-signatures": "^11.9.0",
     "@interop/security-document-loader": "^10.1.6",
     "@interop/vc": "^11.1.2",
-    "@interop/was-client": "^0.103.0",
     "@scure/base": "^2.3.0",
     "byoe-context": "^0.5.0"
   },
@@ -58,6 +57,7 @@
     "@eslint/js": "^10.0.1",
     "@interop/ed25519-verification-key": "^8.2.2",
     "@interop/logger": "^0.2.0",
+    "@interop/pws-client": "^0.105.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.7",
@@ -70,6 +70,9 @@
     "typescript-eslint": "^8.59.4",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
+  },
+  "peerDependencies": {
+    "@interop/pws-client": ">=0.105.0 <1.0.0"
   },
   "publishConfig": {
     "access": "public",
